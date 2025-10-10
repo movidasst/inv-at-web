@@ -60,7 +60,6 @@
             background-color: rgba(0,0,0,0.5); justify-content: center; align-items: center; animation: fadeIn 0.3s ease;
         }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        #loading-overlay { background-color: rgba(0,0,0,0.6); color: white; font-size: 1.2rem; backdrop-filter: blur(4px); }
         #diagram-canvas { cursor: grab; }
         #diagram-canvas.panning { cursor: grabbing; }
         .connection-handle {
@@ -140,8 +139,6 @@
     </div>
     
     <!-- Modals -->
-    <div id="loading-overlay" class="modal"><div class="flex flex-col items-center"><i class="fas fa-spinner fa-spin text-4xl mb-4"></i><p>Analizando con IA...</p></div></div>
-    <div id="fact-selection-modal" class="modal"><div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl"><h3 class="text-xl font-bold mb-4">Seleccionar Hechos Sugeridos por IA</h3><p class="text-gray-600 mb-4">Revisa y selecciona los hechos que consideres precisos para añadirlos a tu investigación.</p><div id="fact-selection-list" class="max-h-96 overflow-y-auto space-y-2 border p-4 rounded-lg bg-slate-50"></div><div class="flex justify-end gap-4 mt-6"><button id="fact-selection-cancel" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 font-semibold">Cancelar</button><button id="fact-selection-add" class="bg-cyan-600 text-white px-4 py-2 rounded-lg hover:bg-cyan-700 font-semibold">Añadir Seleccionados</button></div></div></div>
     <div id="confirm-modal" class="modal"><div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md"><h3 id="confirm-title" class="text-xl font-bold mb-4">Confirmar Acción</h3><p id="confirm-message" class="text-gray-600 mb-6">¿Estás seguro?</p><div class="flex justify-end gap-4"><button id="confirm-cancel" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 font-semibold">Cancelar</button><button id="confirm-ok" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 font-semibold">Confirmar</button></div></div></div>
     <div id="connection-type-modal" class="modal"><div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md"><h3 class="text-xl font-bold mb-2">Seleccionar Tipo de Causa</h3><p id="connection-message" class="text-gray-600 mb-6"></p><div class="space-y-4"><button id="chain-btn" class="w-full text-left bg-blue-50 p-4 rounded-lg hover:bg-blue-100 border border-blue-200 transition-colors"><strong class="text-blue-700">Encadenamiento (Causa Directa)</strong><p class="text-sm text-gray-600">Este hecho fue suficiente por sí solo para provocar el efecto.</p></button><button id="conjunction-btn" class="w-full text-left bg-teal-50 p-4 rounded-lg hover:bg-teal-100 border border-teal-200 transition-colors"><strong class="text-teal-700">Conjunción (Causa Necesaria)</strong><p class="text-sm text-gray-600">Este hecho fue necesario, pero no suficiente. Se requirieron otras causas simultáneamente.</p></button></div><div class="mt-6 text-right"><button id="connection-cancel" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 font-semibold">Cancelar</button></div></div></div>
 
@@ -170,7 +167,7 @@
 <ol class="list-decimal pl-5 mt-2 space-y-3">
     <li><strong>Datos Generales:</strong> Registra la información básica del evento: fecha, lugar, descripción, personas involucradas y los datos del investigador.</li>
     <li><strong>Recopilación:</strong> Escribe un relato detallado y objetivo de los hechos. Incluye información de entrevistas, observaciones y documentos.</li>
-    <li><strong>Listado de Hechos:</strong> Convierte el relato del paso anterior en una lista de hechos cortos, precisos e innegables. Puedes añadirlos manualmente o usar la IA para que los sugiera por ti.</li>
+    <li><strong>Listado de Hechos:</strong> Convierte el relato del paso anterior en una lista de hechos cortos, precisos e innegables que podrás añadir manualmente.</li>
     <li><strong>Diagrama (¡Mejorado!):</strong> El corazón del método. Arrastra los hechos al lienzo y conéctalos para construir el árbol de causas.
         <ul class="list-disc pl-6 mt-2 space-y-1">
             <li><strong>Conexión Rápida:</strong> Arrastra desde los círculos azules de un nodo (causa) hacia otro nodo (efecto).</li>
@@ -179,29 +176,18 @@
         </ul>
     </li>
     <li><strong>Medidas:</strong> Una vez que tu diagrama revele las causas raíz (aquellas que no tienen ninguna causa antes), en esta sección podrás definir las medidas correctivas y preventivas para cada una.</li>
-    <li><strong>Informe Final:</strong> La aplicación generará un informe profesional y completo con toda la información, incluyendo una imagen de tu diagrama y un resumen ejecutivo. ¡Listo para imprimir o guardar!</li>
+    <li><strong>Informe Final:</strong> La aplicación generará un informe profesional y completo con toda la información, incluyendo una imagen de tu diagrama. ¡Listo para imprimir o guardar!</li>
 </ol>
-
-<div class="my-8 p-4 bg-gradient-to-r from-cyan-50 to-blue-50 border-l-4 border-cyan-500 rounded-r-lg">
-    <h3 class="font-bold text-cyan-800 text-lg">3. Potencia tu Análisis con IA (✨)</h3>
-    <p class="mt-2 text-cyan-900">A lo largo de la aplicación, encontrarás botones con el icono ✨. Estas son las funciones de IA que te ayudarán a trabajar más rápido:</p>
-    <ul class="list-disc pl-5 mt-2 space-y-2 text-cyan-900">
-        <li><strong>Sugerencia de Hechos (Paso 2):</strong> La IA lee tu relato y te propone una lista de hechos objetivos para que los añadas con un solo clic.</li>
-        <li><strong>Asistente de Diagrama (Paso 4):</strong> Si ya tienes varios hechos en el lienzo, la IA puede analizar las relaciones lógicas y construir un borrador del árbol de causas por ti.</li>
-        <li><strong>Sugerencia de Medidas (Paso 5):</strong> Para cada causa raíz, la IA puede actuar como un experto en seguridad y proponerte medidas preventivas y correctivas robustas.</li>
-        <li><strong>Resumen Ejecutivo (Paso 6):</strong> La IA redacta un resumen profesional de todo el caso, ideal para compartir con la alta dirección.</li>
-    </ul>
-</div>
 </div></template>
     <template id="template-step-1"><h2 class="text-2xl font-semibold mb-6 text-gray-700">Paso 1: Datos Generales del Suceso</h2><form id="general-data-form" class="space-y-8"><div><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><div class="input-wrapper"><label for="accident-date" class="block text-sm font-medium text-gray-700">Fecha del Accidente</label><i class="fas fa-calendar-alt input-icon mt-6"></i><input type="date" id="accident-date" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm input-with-icon"></div><div class="input-wrapper"><label for="accident-time" class="block text-sm font-medium text-gray-700">Hora del Accidente</label><i class="fas fa-clock input-icon mt-6"></i><input type="time" id="accident-time" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm input-with-icon"></div><div class="md:col-span-2 input-wrapper"><label for="accident-location" class="block text-sm font-medium text-gray-700">Lugar del Accidente</label><i class="fas fa-map-marker-alt input-icon mt-6"></i><input type="text" id="accident-location" placeholder="Ej: Taller de mantenimiento, Bodega central..." class="mt-1 block w-full rounded-md border-gray-300 shadow-sm input-with-icon"></div><div class="md:col-span-2"><label for="accident-description" class="block text-sm font-medium text-gray-700">Descripción Breve del Suceso</label><textarea id="accident-description" rows="4" placeholder="Describa qué sucedió, quién resultó afectado y cuál fue la consecuencia principal." class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"></textarea></div></div></div><div><h3 class="text-lg font-medium text-gray-800 border-b pb-2 mb-4">Persona(s) Involucrada(s)</h3><div id="persons-involved-container"></div><button type="button" id="add-person-btn" class="mt-2 text-sm text-blue-600 hover:text-blue-800 font-semibold"><i class="fas fa-plus-circle mr-1"></i> Añadir Persona</button></div><div><h3 class="text-lg font-medium text-gray-800 border-b pb-2 mb-4">Datos del Investigador</h3><div class="grid grid-cols-1 sm:grid-cols-2 gap-6"><div class="input-wrapper"><label for="investigator-name" class="block text-sm font-medium text-gray-700">Nombre y Apellido</label><i class="fas fa-user-tie input-icon mt-6"></i><input type="text" id="investigator-name" placeholder="Nombre del profesional a cargo" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm input-with-icon"></div><div class="input-wrapper"><label for="investigator-role" class="block text-sm font-medium text-gray-700">Cargo / Función</label><i class="fas fa-id-badge input-icon mt-6"></i><input type="text" id="investigator-role" placeholder="Ej: Prevencionista de Riesgos" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm input-with-icon"></div><div class="input-wrapper sm:col-span-2"><label for="investigator-date" class="block text-sm font-medium text-gray-700">Fecha de la Investigación</label><i class="fas fa-calendar-check input-icon mt-6"></i><input type="date" id="investigator-date" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm input-with-icon"></div></div></div></form></template>
     <template id="template-person-row"><div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4 p-4 border rounded-lg bg-gray-50 relative"><div class="absolute top-2 right-2"><button type="button" class="remove-person-btn text-gray-400 hover:text-red-500 text-sm"><i class="fas fa-times-circle"></i></button></div><div class="input-wrapper"><i class="fas fa-user input-icon"></i><input type="text" placeholder="Nombre y Apellido" class="person-name mt-1 block w-full rounded-md border-gray-300 shadow-sm input-with-icon"></div><div class="input-wrapper"><i class="fas fa-briefcase input-icon"></i><input type="text" placeholder="Ej: Operario de máquina" class="person-role mt-1 block w-full rounded-md border-gray-300 shadow-sm input-with-icon"></div><div class="input-wrapper"><i class="fas fa-notes-medical input-icon"></i><input type="text" placeholder="Ej: Fractura, contusión..." class="person-consequence mt-1 block w-full rounded-md border-gray-300 shadow-sm input-with-icon"></div></div></template>
-    <template id="template-step-2"><h2 class="text-2xl font-semibold mb-4 text-gray-700">Paso 2: Recopilación de Información</h2><div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4"><p class="text-gray-600 flex-grow">Registre aquí toda la información objetiva obtenida. Evite suposiciones o juicios de valor.</p><button id="suggest-facts-btn" class="flex-shrink-0 flex items-center gap-2 bg-cyan-50 text-cyan-700 px-4 py-2 rounded-lg hover:bg-cyan-100 font-semibold transition-colors text-sm">✨ Sugerir Hechos con IA</button></div><textarea id="information-collection" rows="15" placeholder="Ej: Entrevista con el accidentado: 'Estaba cambiando la pieza X cuando la máquina se activó...'. Documento Y: 'El último mantenimiento fue el...'." class="w-full p-3 border rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500"></textarea></template>
+    <template id="template-step-2"><h2 class="text-2xl font-semibold mb-4 text-gray-700">Paso 2: Recopilación de Información</h2><p class="text-gray-600 mb-4">Registre aquí toda la información objetiva obtenida. Evite suposiciones o juicios de valor.</p><textarea id="information-collection" rows="15" placeholder="Ej: Entrevista con el accidentado: 'Estaba cambiando la pieza X cuando la máquina se activó...'. Documento Y: 'El último mantenimiento fue el...'." class="w-full p-3 border rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500"></textarea></template>
     <template id="template-step-3"><h2 class="text-2xl font-semibold mb-4 text-gray-700">Paso 3: Listado de Hechos Constatados</h2><p class="mb-4 text-gray-600">Extraiga del relato anterior los hechos concretos, objetivos y probados. Cada hecho debe ser una frase corta y precisa.</p><div class="flex mb-4"><input type="text" id="new-fact-input" placeholder="Añadir un nuevo hecho y presionar Enter..." class="flex-grow p-3 border rounded-l-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500"><button id="add-fact-btn" class="bg-blue-500 text-white px-5 py-2 rounded-r-lg hover:bg-blue-600 font-semibold"><i class="fas fa-plus"></i> Añadir</button></div><ul id="facts-list" class="space-y-2"></ul></template>
-    <template id="template-step-4"><h2 class="text-2xl font-semibold mb-4 text-gray-700">Paso 4: Construcción del Diagrama</h2><div class="flex flex-col md:flex-row gap-6"><div class="md:w-1/3"><div class="flex justify-between items-center mb-2 flex-wrap gap-2"><h3 class="font-semibold text-lg">Hechos Disponibles</h3><div class="flex gap-2"><button id="ai-build-diagram-btn" class="flex items-center gap-2 bg-cyan-50 text-cyan-700 px-3 py-1.5 rounded-lg hover:bg-cyan-100 font-semibold transition-colors text-xs disabled:opacity-50" disabled>✨ Construir Borrador</button><button id="export-diagram-btn" class="flex items-center gap-2 bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg hover:bg-slate-200 font-semibold transition-colors text-xs"><i class="fas fa-camera"></i> Exportar</button></div></div><div id="diagram-facts-list" class="bg-gray-50 p-4 rounded-lg h-96 overflow-y-auto border"></div><div class="mt-4 text-sm text-gray-600 prose-sm"><p><strong>Nuevas Instrucciones:</strong></p><ol class="list-decimal pl-5 space-y-1"><li><strong>Conectar:</strong> Arrastra desde un círculo azul en un nodo hacia otro para unirlos.</li><li><strong>Mover Lienzo:</strong> Haz clic y arrastra sobre el fondo para mover la vista.</li><li><strong>Zoom:</strong> Usa la rueda del ratón para acercar o alejar.</li><li><strong>Acciones:</strong> Pasa el ratón sobre un nodo para ver sus opciones.</li></ol></div></div><div class="md:w-2/3 relative h-[60vh] md:h-[600px] bg-slate-100 rounded-lg border-2 border-dashed border-slate-300 overflow-hidden" id="diagram-canvas"><div id="diagram-viewport" style="transform-origin: 0 0;"><svg id="diagram-svg" class="absolute top-0 left-0 w-full h-full" style="pointer-events: none;"></svg></div></div></div></template>
+    <template id="template-step-4"><h2 class="text-2xl font-semibold mb-4 text-gray-700">Paso 4: Construcción del Diagrama</h2><div class="flex flex-col md:flex-row gap-6"><div class="md:w-1/3"><div class="flex justify-between items-center mb-2 flex-wrap gap-2"><h3 class="font-semibold text-lg">Hechos Disponibles</h3><div class="flex gap-2"><button id="export-diagram-btn" class="flex items-center gap-2 bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg hover:bg-slate-200 font-semibold transition-colors text-xs"><i class="fas fa-camera"></i> Exportar</button></div></div><div id="diagram-facts-list" class="bg-gray-50 p-4 rounded-lg h-96 overflow-y-auto border"></div><div class="mt-4 text-sm text-gray-600 prose-sm"><p><strong>Nuevas Instrucciones:</strong></p><ol class="list-decimal pl-5 space-y-1"><li><strong>Conectar:</strong> Arrastra desde un círculo azul en un nodo hacia otro para unirlos.</li><li><strong>Mover Lienzo:</strong> Haz clic y arrastra sobre el fondo para mover la vista.</li><li><strong>Zoom:</strong> Usa la rueda del ratón para acercar o alejar.</li><li><strong>Acciones:</strong> Pasa el ratón sobre un nodo para ver sus opciones.</li></ol></div></div><div class="md:w-2/3 relative h-[60vh] md:h-[600px] bg-slate-100 rounded-lg border-2 border-dashed border-slate-300 overflow-hidden" id="diagram-canvas"><div id="diagram-viewport" style="transform-origin: 0 0;"><svg id="diagram-svg" class="absolute top-0 left-0 w-full h-full" style="pointer-events: none;"></svg></div></div></div></template>
     <template id="template-step-5"><h2 class="text-2xl font-semibold mb-4 text-gray-700">Paso 5: Medidas</h2><div id="measures-container-wrapper"></div></template>
     <template id="template-measures-placeholder"><div class="text-center py-10 bg-gray-50 rounded-lg"><i class="fas fa-sitemap text-4xl text-gray-300 mb-4"></i><p class="text-gray-500">Complete el diagrama para identificar las causas raíz.</p><p class="text-sm text-gray-400 mt-2">(Una causa raíz tiene flechas saliendo de ella, pero ninguna llegando).</p></div></template>
-    <template id="template-measure-item"><div class="mb-6 p-4 border rounded-lg bg-gray-50"><div class="flex justify-between items-start mb-3"><h4 class="font-semibold text-md text-cyan-700 flex-grow cause-text"><i class="fas fa-key mr-2"></i>Causa Raíz: </h4><select class="measure-category text-xs rounded border-gray-300 ml-4"></select></div><div class="flex justify-end mb-4"><button class="suggest-measures-btn flex items-center gap-2 bg-cyan-50 text-cyan-700 px-3 py-1.5 rounded-lg hover:bg-cyan-100 font-semibold transition-colors text-xs">✨ Sugerir Medidas con IA</button></div><div class="space-y-4"><div><label class="block text-sm font-medium text-gray-700">Medida Correctiva (Inmediata)</label><textarea rows="2" class="measure-corrective mt-1 block w-full rounded-md border-gray-300" placeholder="Acción para corregir el problema puntual."></textarea></div><div><label class="block text-sm font-medium text-gray-700">Factor Potencial de Accidente (Generalización)</label><textarea rows="2" class="measure-fpa mt-1 block w-full rounded-md border-gray-300" placeholder="¿Cómo este fallo podría causar otros accidentes?"></textarea></div><div><label class="block text-sm font-medium text-gray-700">Medida Preventiva (Sistémica)</label><textarea rows="2" class="measure-preventive mt-1 block w-full rounded-md border-gray-300" placeholder="Acción para eliminar el Factor Potencial de Accidente."></textarea></div></div></div></template>
-    <template id="template-step-6"><h2 class="text-2xl font-semibold mb-4 text-gray-700">Paso 6: Informe Final de la Investigación</h2><div class="flex justify-end mb-4 gap-2"><button id="ai-generate-summary-btn" class="flex items-center gap-2 bg-cyan-500 text-white px-4 py-2 rounded-lg hover:bg-cyan-600 font-semibold disabled:opacity-50">✨ Generar Resumen Ejecutivo</button><button id="print-report-btn" class="flex items-center gap-2 bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 font-semibold"><i class="fas fa-print mr-2"></i> Imprimir Informe</button></div><div id="report-content-wrapper" class="prose max-w-none p-6 border rounded-lg bg-gray-50"></div></template>
+    <template id="template-measure-item"><div class="mb-6 p-4 border rounded-lg bg-gray-50"><div class="flex justify-between items-start mb-3"><h4 class="font-semibold text-md text-cyan-700 flex-grow cause-text"><i class="fas fa-key mr-2"></i>Causa Raíz: </h4><select class="measure-category text-xs rounded border-gray-300 ml-4"></select></div><div class="space-y-4"><div><label class="block text-sm font-medium text-gray-700">Medida Correctiva (Inmediata)</label><textarea rows="2" class="measure-corrective mt-1 block w-full rounded-md border-gray-300" placeholder="Acción para corregir el problema puntual."></textarea></div><div><label class="block text-sm font-medium text-gray-700">Factor Potencial de Accidente (Generalización)</label><textarea rows="2" class="measure-fpa mt-1 block w-full rounded-md border-gray-300" placeholder="¿Cómo este fallo podría causar otros accidentes?"></textarea></div><div><label class="block text-sm font-medium text-gray-700">Medida Preventiva (Sistémica)</label><textarea rows="2" class="measure-preventive mt-1 block w-full rounded-md border-gray-300" placeholder="Acción para eliminar el Factor Potencial de Accidente."></textarea></div></div></div></template>
+    <template id="template-step-6"><h2 class="text-2xl font-semibold mb-4 text-gray-700">Paso 6: Informe Final de la Investigación</h2><div class="flex justify-end mb-4 gap-2"><button id="print-report-btn" class="flex items-center gap-2 bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 font-semibold"><i class="fas fa-print mr-2"></i> Imprimir Informe</button></div><div id="report-content-wrapper" class="prose max-w-none p-6 border rounded-lg bg-gray-50"></div></template>
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
@@ -233,8 +219,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const importInput = document.getElementById('import-file');
     const confirmModal = document.getElementById('confirm-modal');
     const connectionTypeModal = document.getElementById('connection-type-modal');
-    const loadingOverlay = document.getElementById('loading-overlay');
-    const factSelectionModal = document.getElementById('fact-selection-modal');
     
     // --- STATE & STORAGE ---
     function saveState() { localStorage.setItem('mac-investigation', JSON.stringify(investigationState)); updateStepCompletion(); }
@@ -274,21 +258,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         okBtn.addEventListener('click', close, { once: true });
     }
-    function showFactSelectionModal(suggestedFacts) {
-        const listContainer = factSelectionModal.querySelector('#fact-selection-list');
-        listContainer.innerHTML = suggestedFacts.map((fact) => `<label class="flex items-center p-2 bg-white rounded-md border cursor-pointer hover:bg-slate-100"><input type="checkbox" checked class="h-4 w-4 rounded border-gray-300 text-cyan-600 focus:ring-cyan-500" data-fact="${fact}"><span class="ml-3 text-sm text-gray-700">${fact}</span></label>`).join('');
-        factSelectionModal.style.display = "flex";
-        const cancelBtn = factSelectionModal.querySelector('#fact-selection-cancel');
-        const addBtn = factSelectionModal.querySelector('#fact-selection-add');
-        const close = () => factSelectionModal.style.display = "none";
-        const addHandler = () => {
-            const selectedFacts = Array.from(listContainer.querySelectorAll('input:checked')).map(input => input.dataset.fact);
-            investigationState.facts.push(...selectedFacts);
-            saveState(); currentStep = 3; updateNav(); close();
-        };
-        cancelBtn.addEventListener('click', close, { once: true });
-        addBtn.addEventListener('click', addHandler, { once: true });
-    }
     function showConnectionTypeModal(fromNode, toNode, onComplete) {
         connectionTypeModal.querySelector('#connection-message').innerHTML = `Conectar <strong>"${toNode.text}"</strong> como causa de <strong>"${fromNode.text}"</strong>.`;
         connectionTypeModal.style.display = "flex";
@@ -313,39 +282,7 @@ document.addEventListener('DOMContentLoaded', () => {
         cancelBtn.addEventListener('click', close, { once: true });
     }
 
-    // --- API & FILE HANDLING ---
-    async function callGeminiAPI(prompt, button, isJson = false) {
-        if(button) {
-            button.disabled = true;
-            button.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i> Procesando...`;
-        } else {
-            loadingOverlay.style.display = 'flex';
-        }
-        const apiKey = "AIzaSyBkGkRZT1_45_iR4FAYW6xsx3kD4CubrLw";
-        const model = 'gemini-2.5-flash-preview-05-20';
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-        const payload = { contents: [{ parts: [{ text: prompt }] }], generationConfig: {} };
-        if (isJson) { payload.generationConfig.responseMimeType = "application/json"; }
-        try {
-            const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-            if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
-            const result = await response.json();
-            const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (text) return isJson ? JSON.parse(text) : text;
-            throw new Error("API response is empty.");
-        } catch (error) {
-            console.error("Gemini API Error:", error);
-            showAlert("Error de IA", "Hubo un error al comunicarse con la IA. Por favor, inténtelo de nuevo.");
-            return null;
-        } finally {
-            if(button) {
-                button.disabled = false;
-                button.innerHTML = button.dataset.originalText;
-            } else {
-                loadingOverlay.style.display = 'none';
-            }
-        }
-    }
+    // --- FILE HANDLING ---
     newInvestigationBtn.addEventListener('click', () => showConfirmation('Iniciar Nueva Investigación', 'Esto borrará todos los datos actuales. ¿Estás seguro?', resetState));
     exportBtn.addEventListener('click', () => {  const dataStr = JSON.stringify(investigationState, null, 2); const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr); const exportFileDefaultName = 'investigacion_accidente.json'; const linkElement = document.createElement('a'); linkElement.setAttribute('href', dataUri); linkElement.setAttribute('download', exportFileDefaultName); linkElement.click(); });
     importInput.addEventListener('change', (event) => { const file = event.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (e) => { try { const importedState = JSON.parse(e.target.result); if (importedState.general && importedState.facts) { investigationState = importedState; saveState(); currentStep = 1; updateNav(); } else { showAlert('Error de Importación', 'Archivo no válido.'); } } catch (error) { showAlert('Error de Lectura', 'No se pudo leer el archivo.'); } }; reader.readAsText(file); event.target.value = ''; });
@@ -440,14 +377,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const textarea = document.getElementById('information-collection');
         textarea.value = investigationState.information || '';
         textarea.addEventListener('input', () => { investigationState.information = textarea.value; saveState(); });
-        document.getElementById('suggest-facts-btn').addEventListener('click', async (e) => {
-            const narrative = investigationState.information;
-            if (narrative.trim().length < 50) { showAlert("Información Insuficiente", "Por favor, escribe un relato más detallado (mínimo 50 caracteres) antes de usar la IA."); return; }
-            const prompt = `Eres un experto en investigación de accidentes laborales usando el método del Árbol de Causas. Analiza el siguiente relato de un accidente y extrae una lista de hechos objetivos, cortos, precisos e innegables. No incluyas opiniones, juicios de valor, suposiciones o información que no esté explícita en el texto. Devuelve solo un array JSON de strings. Relato: "${narrative}"`;
-            e.target.dataset.originalText = e.target.innerHTML;
-            const result = await callGeminiAPI(prompt, e.target, true);
-            if (result && Array.isArray(result)) { showFactSelectionModal(result); }
-        });
     }
     function attachFactsListListeners() {
         const input = document.getElementById('new-fact-input');
@@ -487,7 +416,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const viewport = document.getElementById('diagram-viewport');
         const svg = document.getElementById('diagram-svg');
         const list = document.getElementById('diagram-facts-list');
-        const aiBuildBtn = document.getElementById('ai-build-diagram-btn');
         const exportDiagramBtn = document.getElementById('export-diagram-btn');
         
         let view = investigationState.diagram.view;
@@ -597,7 +525,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             drawConnections();
             populateFactsList();
-            aiBuildBtn.disabled = !investigationState.diagram.nodes.some(n => n.finalEvent);
         };
 
         // --- Event Listeners Initialization ---
@@ -669,23 +596,6 @@ document.addEventListener('DOMContentLoaded', () => {
             else if (actionBtn.classList.contains('final-event-btn')) { const isFinal = !node.finalEvent; investigationState.diagram.nodes.forEach(n => n.finalEvent = false); node.finalEvent = isFinal; saveState(); renderDiagram(); }
         });
 
-        aiBuildBtn.addEventListener('click', async (e) => {
-            const finalEventNode = investigationState.diagram.nodes.find(n => n.finalEvent);
-            if (!finalEventNode) { showAlert('Acción Requerida', 'Por favor, marque un hecho como "Suceso Final" (usando el icono de la bandera) antes de usar el asistente de IA.'); return; }
-            if (investigationState.diagram.nodes.length < 3) { showAlert('Datos Insuficientes', 'Por favor, añada al menos 3 hechos al diagrama para que la IA pueda construir las relaciones.'); return; }
-            const factsMap = investigationState.diagram.nodes.reduce((acc, node) => { acc[node.id] = node.text; return acc; }, {});
-            const prompt = `You are an expert in Cause Tree Analysis. Given a list of facts from an accident, with one marked as the final event, determine the most logical cause-and-effect relationships. The arrow goes from CAUSE to EFFECT.
-            Facts Map (id: text): ${JSON.stringify(factsMap)}
-            Final Event ID: "${finalEventNode.id}"
-            Return a JSON array of connection objects, where each object has "from" (cause ID), "to" (effect ID), and "type" ('chain' for a direct cause, or 'conjunction' for a necessary but not sufficient cause). Only return the JSON array.`;
-            e.target.dataset.originalText = e.target.innerHTML;
-            const connections = await callGeminiAPI(prompt, e.target, true);
-            if (connections && Array.isArray(connections)) {
-                investigationState.diagram.connections = connections.filter(c => factsMap[c.from] && factsMap[c.to]); // Filter invalid connections
-                saveState();
-                renderDiagram();
-            }
-        });
         exportDiagramBtn.addEventListener('click', async (e) => {
             const originalText = e.target.innerHTML;
             e.target.disabled = true;
@@ -745,27 +655,6 @@ document.addEventListener('DOMContentLoaded', () => {
             investigationState.measures[causeId][key] = e.target.value;
             saveState();
         });
-
-        wrapper.addEventListener('click', async e => {
-            const suggestBtn = e.target.closest('.suggest-measures-btn');
-            if (suggestBtn) {
-                const causeContainer = suggestBtn.closest('[data-cause-id]');
-                const causeId = causeContainer.dataset.causeId;
-                const causeNode = investigationState.diagram.nodes.find(n => n.id === causeId);
-                if (!causeNode) return;
-                
-                const prompt = `Eres un experto senior en seguridad y salud en el trabajo. Para la siguiente causa raíz de un accidente laboral: "${causeNode.text}", sugiere un plan de acción completo. Debes proveer:\n1.  Una 'Medida Correctiva' (acción inmediata y específica para solucionar el problema puntual).\n2.  Un 'Factor Potencial de Accidente' (la generalización del fallo sistémico que representa esta causa raíz).\n3.  Una 'Medida Preventiva' (una acción sistémica y a largo plazo para eliminar el Factor Potencial de Accidente).\nDevuelve la respuesta en formato JSON con las claves "corrective", "fpa" y "preventive".`;
-                suggestBtn.dataset.originalText = suggestBtn.innerHTML;
-                const result = await callGeminiAPI(prompt, suggestBtn, true);
-                
-                if (result && result.corrective && result.fpa && result.preventive) {
-                    causeContainer.querySelector('.measure-corrective').value = result.corrective;
-                    causeContainer.querySelector('.measure-fpa').value = result.fpa;
-                    causeContainer.querySelector('.measure-preventive').value = result.preventive;
-                    causeContainer.querySelectorAll('textarea, select').forEach(el => el.dispatchEvent(new Event('input', { bubbles: true })));
-                }
-            }
-        });
     }
     
     async function attachReportListeners() {
@@ -778,29 +667,12 @@ document.addEventListener('DOMContentLoaded', () => {
              printWindow.document.close();
              setTimeout(() => { printWindow.print(); printWindow.close(); }, 500);
         });
-        const summaryBtn = document.getElementById('ai-generate-summary-btn');
-        summaryBtn.addEventListener('click', async (e) => {
-            const { general, measures } = investigationState;
-            const rootCauses = investigationState.diagram.nodes.filter(n => !n.isExternal && !investigationState.diagram.connections.some(c => c.to === n.id) && investigationState.diagram.connections.some(c => c.from === n.id));
-            if (rootCauses.length === 0) { showAlert('Datos Insuficientes', 'Se necesitan causas raíz en el diagrama para generar un resumen.'); return; }
-            const data = `Description: ${general.description}\nRoot Causes: ${rootCauses.map(c => c.text).join('; ')}\nPreventive Measures: ${rootCauses.map(c => measures[c.id]?.preventive || '').filter(Boolean).join('; ')}`;
-            const prompt = `You are a health and safety manager. Based on the following data, write a concise, professional executive summary (150-200 words) for senior management. Synthesize the information into a coherent narrative. Respond in Spanish. Data: ${data}`;
-            e.target.dataset.originalText = e.target.innerHTML;
-            const summary = await callGeminiAPI(prompt, e.target);
-            if (summary) {
-                const summaryContainer = document.getElementById('report-summary-container');
-                if (summaryContainer) {
-                    summaryContainer.innerHTML = `<h3 class="text-xl font-semibold mt-4">Resumen Ejecutivo (Generado por IA)</h3><p>${summary.replace(/\n/g, '<br>')}</p>`;
-                }
-            }
-        });
     }
 
     async function generateReportContent() {
         const { general, persons, investigator, information, facts } = investigationState;
         const diagramImage = await generateDiagramImageForReport();
         let reportHTML = `<div class="prose max-w-none">
-                <div id="report-summary-container"></div>
                 <h2 class="text-2xl font-semibold border-b pb-2 mb-4">1. Datos Generales</h2><div class="grid grid-cols-2 gap-4"><div><strong>Fecha:</strong> ${general.date || 'N/A'}</div><div><strong>Hora:</strong> ${general.time || 'N/A'}</div><div class="col-span-2"><strong>Lugar:</strong> ${general.location || 'N/A'}</div></div><h3 class="text-xl font-semibold mt-4">Descripción del Suceso</h3><p>${general.description || 'Sin descripción.'}</p><h3 class="text-xl font-semibold mt-4">Personas Involucradas</h3><table class="w-full text-left table-auto mt-2"><thead><tr class="bg-gray-200"><th class="p-2">Nombre</th><th class="p-2">Cargo</th><th class="p-2">Consecuencia</th></tr></thead><tbody>${persons.map(p => `<tr><td class="border p-2">${p.name}</td><td class="border p-2">${p.role}</td><td class="border p-2">${p.consequence}</td></tr>`).join('')}</tbody></table>
                 <section class="mt-6 break-inside-avoid"><h2 class="text-2xl font-semibold border-b pb-2 mb-4">2. Recopilación y Hechos</h2><h3 class="text-xl font-semibold">Información Recopilada</h3><pre class="bg-white p-3 border rounded font-sans whitespace-pre-wrap">${information || 'Sin información.'}</pre><h3 class="text-xl font-semibold mt-4">Listado de Hechos Constatados</h3><ol class="list-decimal pl-5">${facts.map(f => `<li>${f}</li>`).join('')}</ol></section>
                 <section class="mt-6 break-inside-avoid"><h2 class="text-2xl font-semibold border-b pb-2 mb-4">3. Árbol de Causas</h2><h3 class="text-xl font-semibold">Diagrama Visual</h3>${diagramImage ? `<img src="${diagramImage}" alt="Diagrama del Árbol de Causas" class="w-full border rounded-lg shadow-md">` : '<p>No se pudo generar el diagrama visual. Asegúrese de que el diagrama esté completo.</p>'}<h3 class="text-xl font-semibold mt-6">Análisis Lógico</h3>${generateReportTreeHTML()}</section>
@@ -888,11 +760,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const rootCauses = investigationState.diagram.nodes.filter(n => !n.isExternal && !investigationState.diagram.connections.some(c => c.to === n.id) && investigationState.diagram.connections.some(c => c.from === n.id));
         if(rootCauses.length === 0) return '<p>No se identificaron causas raíz gestionables o no se propusieron medidas.</p>';
         return `<table class="w-full text-left table-auto mt-2 border-collapse"><thead><tr class="bg-gray-200"><th class="border p-2">Causa Raíz / Categoría</th><th class="border p-2">Medida Correctiva</th><th class="border p-2">Factor Potencial de Accidente (FPA)</th><th class="border p-2">Medida Preventiva</th></tr></thead><tbody>
-                        ${rootCauses.map(cause => {
-                            const m = investigationState.measures[cause.id] || {};
-                            return `<tr><td class="border p-2"><p class="font-semibold">${cause.text}</p><p class="text-xs text-gray-600">${m.category || 'Sin categorizar'}</p></td><td class="border p-2">${m.corrective || ''}</td><td class="border p-2">${m.fpa || ''}</td><td class="border p-2">${m.preventive || ''}</td></tr>`
-                        }).join('')}
-                    </tbody></table>`;
+                                ${rootCauses.map(cause => {
+                                    const m = investigationState.measures[cause.id] || {};
+                                    return `<tr><td class="border p-2"><p class="font-semibold">${cause.text}</p><p class="text-xs text-gray-600">${m.category || 'Sin categorizar'}</p></td><td class="border p-2">${m.corrective || ''}</td><td class="border p-2">${m.fpa || ''}</td><td class="border p-2">${m.preventive || ''}</td></tr>`
+                                }).join('')}
+                            </tbody></table>`;
     }
     function loadExampleCase() {
         const exampleState = {
@@ -915,6 +787,8 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
+
 
 
 
