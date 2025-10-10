@@ -321,7 +321,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             loadingOverlay.style.display = 'flex';
         }
-        const apiKey = "";
+        const apiKey = "AIzaSyBkGkRZT1_45_iR4FAYW6xsx3kD4CubrLw";
         const model = 'gemini-2.5-flash-preview-05-20';
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
         const payload = { contents: [{ parts: [{ text: prompt }] }], generationConfig: {} };
@@ -915,6 +915,9 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
+
+
 
 
 
