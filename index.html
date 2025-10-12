@@ -55,6 +55,55 @@
         .legend{display:flex; flex-wrap:wrap; gap:14px; align-items:center; padding:10px; height: 40px; border-top: 1px solid #e5e7eb;}
         .chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#334155}
         .dot{width:12px;height:12px;border-radius:999px}
+        
+        /* Print-specific styles */
+        @media print {
+            body {
+                background-color: #fff;
+            }
+            header, nav, .mt-8, footer, #prev-btn, #next-btn, #print-report-btn {
+                display: none !important;
+            }
+            main#app-container {
+                box-shadow: none;
+                padding: 0;
+                margin: 0;
+                border: none;
+            }
+            #report-content-wrapper {
+                padding: 0;
+                border: none;
+                box-shadow: none;
+            }
+            .prose {
+                font-size: 11pt;
+            }
+            .prose h1, .prose h2, .prose h3 {
+                margin-top: 1.5em;
+                margin-bottom: 0.5em;
+            }
+            .prose table {
+                width: 100%;
+                border-collapse: collapse;
+            }
+            .prose th, .prose td {
+                border: 1px solid #ddd;
+                padding: 8px;
+                text-align: left;
+            }
+            .prose th {
+                background-color: #f2f2f2;
+            }
+            .prose .measure-block {
+                 page-break-inside: avoid;
+            }
+            #diagram-image {
+                max-width: 100%;
+                height: auto;
+                margin-top: 1rem;
+                page-break-inside: avoid;
+            }
+        }
     </style>
 </head>
 <body class="text-gray-800">
@@ -159,7 +208,7 @@
                  <div id="cy" class="flex-grow rounded-t-xl"></div>
                  <div class="legend rounded-b-xl bg-white">
                     <span class="chip"><span class="dot" style="background:var(--danger)"></span> Evento</span>
-                    <span class="chip"><span class="dot" style="background:var(--warn)"></span> Condición</span>
+                    <span class="chip"><span class="dot" style="background:var(--warning)"></span> Condición</span>
                     <span class="chip"><span class="dot" style="background:var(--info)"></span> Acción</span>
                     <span class="chip"><span class="dot" style="background:var(--brand)"></span> Barrera</span>
                     <div class="flex-grow"></div>
@@ -277,6 +326,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- GLOBAL FILE HANDLING ---
     newInvestigationBtn.addEventListener('click', () => showConfirmation('Iniciar Nueva Investigación', 'Esto borrará todos los datos actuales no guardados. ¿Estás seguro?', resetState));
     exportBtn.addEventListener('click', () => {
+        saveState(); // Ensure latest diagram data is saved
         const dataStr = JSON.stringify(investigationState, null, 2);
         const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
         const exportFileDefaultName = `investigacion_${new Date().toISOString().slice(0,10)}.json`;
@@ -437,8 +487,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const rootStyles = getComputedStyle(document.documentElement);
         const inkColor = rootStyles.getPropertyValue('--ink').trim();
-        const dangerColor = rootStyles.getPropertyValue('--danger').trim();
-        const warnColor = rootStyles.getPropertyValue('--warn').trim();
+        const dangerColor = rootStyles.getPropertyValue('--color-danger').trim();
+        const warnColor = rootStyles.getPropertyValue('--color-warning').trim();
         const infoColor = rootStyles.getPropertyValue('--info').trim();
         const brandColor = rootStyles.getPropertyValue('--brand').trim();
 
@@ -503,6 +553,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         function addNode(text, tipo, originIndex) {
             const id = 'n' + (seq++);
+            investigationState.diagram.seq = seq;
             const data = { id, label: text, tipo, originFactIndex: originIndex };
             const { x, y } = cyInstance.pan();
             const z = cyInstance.zoom();
@@ -556,23 +607,22 @@ document.addEventListener('DOMContentLoaded', () => {
         updateNodeEditor(null);
     }
 
+    function getRootCauses() {
+        const cyData = investigationState.diagram.cytoscape;
+        if (!cyData || !cyData.nodes) {
+            return [];
+        }
+        const nodes = cyData.nodes.map(n => n.data);
+        const edges = cyData.edges ? cyData.edges.map(e => e.data) : [];
+        const nodesWithChildren = new Set(edges.map(e => e.source));
+        const nodesWithParents = new Set(edges.map(e => e.target));
+        return nodes.filter(n => nodesWithChildren.has(n.id) && !nodesWithParents.has(n.id));
+    }
+
     function attachMeasuresListeners() {
         const wrapper = document.getElementById('measures-container-wrapper');
         wrapper.innerHTML = ''; // Clear previous content
-
-        const cyData = investigationState.diagram.cytoscape;
-        if (!cyData || !cyData.nodes) {
-            wrapper.appendChild(document.getElementById('template-measures-placeholder').content.cloneNode(true));
-            return;
-        }
-
-        const nodes = cyData.nodes.map(n => n.data);
-        const edges = cyData.edges ? cyData.edges.map(e => e.data) : [];
-        
-        const nodesWithChildren = new Set(edges.map(e => e.source));
-        const nodesWithParents = new Set(edges.map(e => e.target));
-        
-        const rootCauses = nodes.filter(n => nodesWithChildren.has(n.id) && !nodesWithParents.has(n.id));
+        const rootCauses = getRootCauses();
 
         if (rootCauses.length === 0) {
             wrapper.appendChild(document.getElementById('template-measures-placeholder').content.cloneNode(true));
@@ -607,11 +657,98 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
+    async function generateReportHTML() {
+        let diagramImageSrc = 'https://placehold.co/600x400/f8fafc/64748b?text=Diagrama+no+disponible';
+
+        if (investigationState.diagram.cytoscape && investigationState.diagram.cytoscape.nodes) {
+            const tempContainer = document.createElement('div');
+            tempContainer.style.width = '800px';
+            tempContainer.style.height = '600px';
+            tempContainer.style.position = 'absolute';
+            tempContainer.style.left = '-9999px';
+            document.body.appendChild(tempContainer);
+
+            const tempCy = cytoscape({
+                container: tempContainer,
+                elements: JSON.parse(JSON.stringify(investigationState.diagram.cytoscape.elements)),
+                style: cyInstance ? cyInstance.style().json() : [],
+            });
+            await tempCy.layout({ name: 'dagre', rankDir: 'TB' }).run().promiseOn('layoutstop');
+            
+            diagramImageSrc = tempCy.png({ full: true, scale: 1.5, bg: 'white' });
+            tempCy.destroy();
+            tempContainer.remove();
+        }
+
+        const { general, persons, investigator, information, facts, measures } = investigationState;
+        const rootCauses = getRootCauses();
+
+        return `
+            <h1 class="text-3xl font-bold border-b pb-2">Informe de Investigación de Accidente</h1>
+            
+            <h2 class="mt-8">1. Datos Generales del Suceso</h2>
+            <p><strong>Fecha:</strong> ${general.date || 'No especificada'}</p>
+            <p><strong>Hora:</strong> ${general.time || 'No especificada'}</p>
+            <p><strong>Lugar:</strong> ${general.location || 'No especificado'}</p>
+            <p><strong>Descripción:</strong> ${general.description || 'No especificada'}</p>
+
+            <h2 class="mt-6">2. Personas Involucradas</h2>
+            <table>
+                <thead><tr><th>Nombre</th><th>Cargo</th><th>Consecuencia</th></tr></thead>
+                <tbody>
+                    ${persons.map(p => `<tr><td>${p.name || ''}</td><td>${p.role || ''}</td><td>${p.consequence || ''}</td></tr>`).join('')}
+                </tbody>
+            </table>
+
+            <h2 class="mt-6">3. Datos del Investigador</h2>
+            <p><strong>Nombre:</strong> ${investigator.name || 'No especificado'}</p>
+            <p><strong>Cargo:</strong> ${investigator.role || 'No especificado'}</p>
+            <p><strong>Fecha de Investigación:</strong> ${investigator.date || 'No especificada'}</p>
+
+            <h2 class="mt-6">4. Recopilación de Información</h2>
+            <div class="p-2 border bg-white rounded" style="white-space: pre-wrap;">${information || 'No hay información registrada.'}</div>
+
+            <h2 class="mt-6">5. Listado de Hechos Constatados</h2>
+            <ol class="list-decimal pl-5">
+                ${facts.map(fact => `<li>${fact}</li>`).join('') || '<li>No hay hechos registrados.</li>'}
+            </ol>
+
+            <h2 class="mt-6">6. Diagrama del Árbol de Causas</h2>
+            <img id="diagram-image" src="${diagramImageSrc}" alt="Diagrama del Árbol de Causas">
+
+            <h2 class="mt-6">7. Plan de Acción</h2>
+            ${rootCauses.map(cause => {
+                const m = measures[cause.id] || {};
+                return `
+                <div class="measure-block mt-4 p-3 border rounded">
+                    <h3 class="font-semibold">Causa Raíz: ${cause.label}</h3>
+                    <p class="text-sm text-gray-600"><strong>Categoría:</strong> ${m.category || 'Sin categorizar'}</p>
+                    <div class="mt-2 pl-4 border-l-2">
+                        <p><strong>Medida Correctiva:</strong> ${m.corrective || 'No definida'}</p>
+                        <p><strong>Factor Potencial de Accidente:</strong> ${m.fpa || 'No definido'}</p>
+                        <p><strong>Medida Preventiva:</strong> ${m.preventive || 'No definida'}</p>
+                    </div>
+                </div>
+                `;
+            }).join('') || '<p>No se han definido medidas para las causas raíz.</p>'}
+        `;
+    }
+
     async function attachReportListeners() {
-        // This is a placeholder as it requires a temporary Cytoscape instance to generate the image,
-        // which can be complex to manage outside the active step.
-        // A full implementation would re-initialize cytoscape in a hidden div.
-        document.getElementById('report-content-wrapper').innerHTML = "<p class='text-center text-gray-500'>El generador de informes se está desarrollando.</p>";
+        const wrapper = document.getElementById('report-content-wrapper');
+        wrapper.innerHTML = `<p class='text-center text-gray-500 p-8'>Generando informe, por favor espere...</p>`;
+        
+        try {
+            const reportHTML = await generateReportHTML();
+            wrapper.innerHTML = reportHTML;
+        } catch(error) {
+            console.error("Error generating report:", error);
+            wrapper.innerHTML = `<p class='text-center text-red-500 p-8'>Ocurrió un error al generar el informe.</p>`;
+        }
+
+        document.getElementById('print-report-btn').addEventListener('click', () => {
+            window.print();
+        });
     }
 
     function loadExampleCase() {
@@ -619,7 +756,7 @@ document.addEventListener('DOMContentLoaded', () => {
             general: { date: '2025-10-06', time: '11:30', location: 'Taller de reparaciones "El Rápido"', description: 'Un operario sufre quemaduras graves en las piernas al incendiarse sus pantalones mientras intentaba apagar un fuego originado en una lata de aceite usado.' },
             persons: [{ name: 'Carlos Pérez', role: 'Mecánico', consequence: 'Quemaduras de 2º y 3er grado en ambas piernas.' }],
             investigator: { name: 'David Linares Brea', role: 'Jefe de Prevención', date: new Date().toISOString().split('T')[0] },
-            information: `El día del accidente, el mecánico Carlos Pérez se encontraba realizando el cambio de aceite de un camión en el foso del taller...`,
+            information: `El día del accidente, el mecánico Carlos Pérez se encontraba realizando el cambio de aceite de un camión en el foso del taller. Al mismo tiempo, otro compañero realizaba un trabajo de desbarbado con una amoladora en las proximidades. Se produjo un pequeño fuego en una lata de aceite usado que estaba en el suelo. Carlos intentó apagarlo de una patada, pero su pantalón, impregnado de grasa, se incendió provocándole graves quemaduras.`,
             facts: ["Quemaduras en piernas", "Pantalón se incendia", "Intenta apagar fuego con el pie", "Fuego en lata de aceite", "Pantalón impregnado de grasa", "Chispas caen sobre la lata", "Trabajo de desbarbado próximo", "Lata contaminada con combustible", "Falta formación en extintores", "Falta delimitación de zonas"],
             diagram: {
                 cytoscape: {
@@ -637,14 +774,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             { data: { id: 'n10', label: 'Falta delimitación de zonas', tipo: 'barrera', originFactIndex: 9 }, position: { x: 50, y: 650 } }
                         ],
                         edges: [
-                            { data: { source: 'n2', target: 'n1' } },
-                            { data: { source: 'n3', target: 'n2' } },
-                            { data: { source: 'n5', target: 'n2' } },
-                            { data: { source: 'n4', target: 'n3' } },
-                            { data: { source: 'n6', target: 'n4' } },
-                            { data: { source: 'n8', target: 'n4' } },
-                            { data: { source: 'n7', target: 'n6' } },
-                            { data: { source: 'n10', target: 'n7' } },
+                            { data: { source: 'n2', target: 'n1' } }, { data: { source: 'n3', target: 'n2' } },
+                            { data: { source: 'n5', target: 'n2' } }, { data: { source: 'n4', target: 'n3' } },
+                            { data: { source: 'n6', target: 'n4' } }, { data: { source: 'n8', target: 'n4' } },
+                            { data: { source: 'n7', target: 'n6' } }, { data: { source: 'n10', target: 'n7' } },
                             { data: { source: 'n9', target: 'n3' } }
                         ]
                     }
@@ -664,4 +797,5 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
