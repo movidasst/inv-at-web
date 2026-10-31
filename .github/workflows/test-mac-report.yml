@@ -1,0 +1,53 @@
+name: Comprobar informe PDF MAC
+on:
+  push:
+    paths:
+      - '.github/workflows/test-mac-report.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar navegador de prueba
+        run: |
+          npm install --no-save playwright
+          npx playwright install chromium
+      - name: Ejecutar prueba del demo e inspeccionar PDF
+        shell: bash
+        run: |
+          python3 -m http.server 8765 >/tmp/mac-server.log 2>&1 &
+          node - <<'NODE'
+            const {chromium}=require('playwright');
+            (async()=>{
+            const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
+            const page=await browser.newPage({acceptDownloads:true,viewport:{width:1366,height:900}});
+            page.on('pageerror',e=>console.log('PAGE_ERROR',e.stack));
+            page.on('console',m=>{if(m.type()==='error')console.log('CONSOLE_ERROR',m.text())});
+            await page.goto('http://127.0.0.1:8765/',{waitUntil:'domcontentloaded'});
+            await page.addStyleTag({content:'.login-gate{display:none!important}body.auth-locked{overflow:auto!important}#appShell{display:block!important}'});
+            await page.evaluate(()=>{const sh=document.getElementById('appShell');sh.hidden=false;sh.setAttribute('aria-hidden','false');window.MACApp.start({scope:'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'});});
+            await page.waitForSelector('#reportPreview .printreport',{timeout:20000});
+            const report=await page.evaluate(()=>({text:document.querySelector('#reportPreview').textContent.slice(0,650),img:[...document.querySelectorAll('#reportPreview .report-diagram img')].map(x=>({complete:x.complete,width:x.naturalWidth,height:x.naturalHeight,renderedWidth:x.getBoundingClientRect().width})),cards:document.querySelectorAll('#reportPreview .report-card').length}));
+            console.log('REPORT',JSON.stringify(report));
+            if(!report.img.length||!report.img[0].complete||report.img[0].width<900)throw Error('TREE_IMAGE_MISSING');
+            if(report.cards<25)throw Error('REPORT_INCOMPLETE');
+            const promise=page.waitForEvent('download',{timeout:80000});
+            await page.getByRole('button',{name:'Descargar PDF'}).click();
+            const file=await promise;
+            await file.saveAs('/tmp/mac-demo-report.pdf');
+            console.log('PDF_SAVED',file.suggestedFilename());
+            await browser.close();
+            })().catch(e=>{console.error('TEST_FAILED',e.stack);process.exit(1)});
+            
+          NODE
+          pdfinfo /tmp/mac-demo-report.pdf | grep -E 'Pages:|Page size:|File size:'
+          echo 'PDF_IMAGE_LIST'
+          pdfimages -list /tmp/mac-demo-report.pdf | tail -12
+          pages=$(pdfinfo /tmp/mac-demo-report.pdf | awk '/^Pages:/{print $2}')
+          pdfinfo -f "$pages" -l "$pages" /tmp/mac-demo-report.pdf | grep -E '^Page *[0-9]+ size:'
