@@ -3,6 +3,9 @@ on:
   push:
     paths:
       - '.github/workflows/test-mac-report.yml'
+      - 'v2.js'
+      - 'v2.css'
+      - 'index.html'
   workflow_dispatch:
 permissions:
   contents: read
@@ -18,6 +21,8 @@ jobs:
         run: |
           npm install --no-save playwright
           npx playwright install chromium
+      - name: Instalar herramientas de validación PDF
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils
       - name: Ejecutar prueba del demo e inspeccionar PDF
         shell: bash
         run: |
@@ -51,3 +56,9 @@ jobs:
           pdfimages -list /tmp/mac-demo-report.pdf | tail -12
           pages=$(pdfinfo /tmp/mac-demo-report.pdf | awk '/^Pages:/{print $2}')
           pdfinfo -f "$pages" -l "$pages" /tmp/mac-demo-report.pdf | grep -E '^Page *[0-9]+ size:'
+      - name: Guardar PDF demo como evidencia de prueba
+        uses: actions/upload-artifact@v4
+        with:
+          name: MAC-demo-informe-PDF
+          path: /tmp/mac-demo-report.pdf
+          retention-days: 7
