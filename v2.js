@@ -45,13 +45,37 @@ function link(root,text,url){const a=E("a","",text);a.href=url;a.target="_blank"
 function due(hours){const g=s.general;if(!g.date||!g.time)return "Registra fecha y hora del accidente";const [y,m,day]=g.date.split("-").map(Number),[hh,mm]=g.time.split(":").map(Number);const d=new Date(Date.UTC(y,m-1,day,hh,mm)+Math.round(hours*3600000));if(Number.isNaN(d.getTime()))return "Fecha u hora inválidas";const pad=x=>String(x).padStart(2,"0");return pad(d.getUTCDate())+"/"+pad(d.getUTCMonth()+1)+"/"+d.getUTCFullYear()+" · "+pad(d.getUTCHours())+":"+pad(d.getUTCMinutes())+" h (Venezuela)"}
 function headerNav(){const nav=$("steps");nav.innerHTML="";STEPS.forEach((name,i)=>{const b=btn((i===step?"● ":"")+i+". "+name,()=>goto(i),"step"+(i===step?" current":""));nav.append(b)});$("progressBar").style.width=Math.round(step/(STEPS.length-1)*100)+"%";$("stepLabel").textContent="Etapa "+(step+1)+" de "+STEPS.length}
 function goto(i){if(cy){save();cy.destroy();cy=null}step=Math.min(STEPS.length-1,Math.max(0,i));render();window.scrollTo({top:0,behavior:"smooth"})}
-function render(){headerNav();const root=$("stage");root.innerHTML="";const renders=[intro,identification,legal,evidences,facts,diagram,analysis,actions,report];renders[step](root);$("back").disabled=step===0;$("next").disabled=step===STEPS.length-1;$("next").textContent=step===STEPS.length-2?"Ver informe →":"Siguiente →"}
+function render(){headerNav();const root=$("stage");root.innerHTML="";const renders=[intro,identification,legal,evidences,facts,diagram,analysis,actions,report];renders[step](root);if(s.demoMode&&step>0)demoTip(root,step);$("back").disabled=step===0;$("next").disabled=step===STEPS.length-1;$("next").textContent=step===STEPS.length-2?"Ver informe →":"Siguiente →"}
 function intro(root){pTitle(root,"Investigación de Accidentes de Trabajo","Aplicación profesional y educativa · Academia Movida de SST · LOPCYMAT, Reglamento Parcial y NT-04:2023");
 note(root,"Ruta práctica: identificación → actuaciones legales → evidencias → hechos → árbol de causas → causas inmediatas, básicas y raíz → medidas → informe. Los formularios creados aquí son instrumentos técnicos de apoyo y no sustituyen los oficiales del INPSASEL.");
 const gg=grid(root,"three");[["1 · Marco legal","Art. 69 y arts. 73–76 de LOPCYMAT; arts. 83–85 del Reglamento."],["2 · Investigación técnica","NT-04:2023, art. 19: recopilación objetiva y análisis de causas inmediatas y básicas."],["3 · Método y prevención","Árbol de causas OIT y profundización técnica en causas raíz y controles."]].forEach(x=>{const c=E("div","item");c.append(E("h3","",x[0]));c.append(E("p","",x[1]));gg.append(c)});
-const g=group(root,"Comienza con orientación");g.append(E("p","", "Los campos incluyen instrucciones y referencias. El caso de demostración permite aprender sin usar información real."));const row=E("div","row");row.append(btn("Cargar caso de demostración",()=>{if(confirm("¿Reemplazar la investigación abierta con el caso de demostración?")){s=demo();save();goto(1)}}));row.append(btn("Empezar investigación",()=>goto(1),"btn"));g.append(row);
+const g=group(root,"Investigación de prueba y demostración guiada");
+g.append(E("p","", "Incluye un expediente ficticio completo, con evidencias, cronología, árbol, análisis de causas y medidas. No contiene datos reales ni comprobantes oficiales."));
+const row=E("div","row");
+row.append(btn("Cargar investigación de prueba",()=>{if(confirm("¿Cargar el caso ficticio completo y sustituir la investigación abierta?")){s=demo();s.demoMode=false;save();goto(1)}},"btn"));
+row.append(btn("Iniciar demostración guiada",()=>{if(confirm("¿Abrir el caso de demostración y seguirlo paso a paso? Se reemplazará el trabajo actual.")){s=demo();s.demoMode=true;save();goto(1)}}));
+row.append(btn("Descargar caso de prueba en Excel",()=>downloadWorkbook(demo(),"DEMO_AT_2026")));
+row.append(btn("Iniciar investigación vacía",()=>goto(1)));
+g.append(row);
 const priv=group(root,"Tratamiento de datos y límites");priv.append(E("p","", "La información se guarda automáticamente solo en el almacenamiento local de este navegador. No hay cuenta, respaldo remoto ni recuperación entre dispositivos. Para conservarla, exporta un Excel y guárdalo en un lugar seguro. Evita usar datos personales o médicos sensibles en dispositivos compartidos. No se envían expedientes a servicios de IA."));priv.append(E("p","muted","La aplicación ayuda a documentar una investigación; no determina oficialmente el origen ocupacional ni certifica cumplimiento legal."));
 const rr=group(root,"Referencias de trabajo");Object.keys(refs).forEach(k=>{const x=E("p");x.append(E("strong","",refs[k]+" · "));link(x,"Consultar fuente",URLs[k]);rr.append(x)})}
+
+function demoTip(root,stage){
+const t=[
+"",
+"**Módulo 1.** Comprueba que los datos iniciales describan el evento sin atribuir culpas. Identidades y entidad son ficticias.",
+"**Módulo 1.** Revisa las cuatro comunicaciones simuladas al INPSASEL, al CSSL y al sindicato, además de la declaración formal. Ninguna constancia tiene validez legal.",
+"**Módulo 2.** Lee E01–E11. Fíjate en que E07–E08 son testimonios pendientes y E09 (foto posterior) no prueba el estado previo.",
+"**Módulo 2.** Compara hechos verificados con H11 y H12, que permanecen pendientes. No deben utilizarse como hechos definitivos.",
+"**Módulo 3.** Revisa las conjunciones: banda energizada + resguardo abierto → posibilidad de contacto. El diagrama contiene hallazgos adicionales aún sin conexión causal verificada.",
+"**Módulo 3.** Observa que H08 se presenta como POSIBLE causa raíz, no como conclusión comprobada. E11 obliga a profundizar en la gestión del aislamiento.",
+"**Módulo 4.** Examina las cuatro medidas, sus responsables y cómo verificar la eficacia; una acción ejecutada no es necesariamente eficaz.",
+"**Módulo 4.** El informe reúne el expediente y advierte sobre información pendiente. También puedes descargarlo en PDF y exportar toda la investigación a Excel."
+];
+const n=E("aside","note");const r=E("div","row between");r.append(E("strong","", "🎓 DEMOSTRACIÓN GUIADA · ETAPA "+stage));r.append(btn("Salir de guía",()=>{s.demoMode=false;save();render()},"btn secondary"));n.append(r);const p=E("p","",t[stage]||"");n.append(p);
+root.insertBefore(n,root.firstChild.nextSibling);
+}
+
 function identification(root){pTitle(root,"1. Identificación del acontecimiento","Primero registra qué ocurrió. No incluyas causas supuestas en la descripción inicial. Fundamento: LOPCYMAT art. 69 y art. 40.14.");
 const g=group(root,"Identificación de la entidad y del evento");const r=grid(g);
 [["Código interno","code"],["Empresa / entidad","company"],["Lugar / área","place"],["Fecha del accidente","date","date"],["Hora del accidente (Venezuela)","time","time"]].forEach(a=>field(r,a[0],s.general[a[1]],v=>s.general[a[1]]=v,a[2]||"text"));
@@ -125,11 +149,79 @@ const prev=E("div","item");prev.id="reportPreview";prev.style.marginTop="15px";r
 function preview(){prev.innerHTML=renderReportHtml()}
 function downloadPDF(){if(typeof window.html2pdf!=="function"){alert("No se cargó la biblioteca de PDF. Usa Imprimir → Guardar como PDF.");return}preview();window.html2pdf().set({margin:[10,10,12,10],filename:"investigacion_accidente_"+(s.general.code||"mac")+".pdf",image:{type:"jpeg",quality:.97},html2canvas:{scale:1.7,useCORS:true},jsPDF:{unit:"mm",format:"a4",orientation:"portrait"},pagebreak:{mode:["css","legacy"],avoid:["tr",".report-section"]}}).from(prev).save()}
 }
-function demo(){const d=initial();d.general={code:"DEMO-001",company:"Empresa de demostración",place:"Área de mantenimiento",date:"2026-11-17",time:"09:00",description:"Durante una intervención de mantenimiento de una banda transportadora, la mano de una persona entró en contacto con una parte móvil.",worker:"Trabajador ficticio",job:"Mantenimiento",consequence:"Lesión de mano (simulada)",investigator:"Participante del curso",role:"Investigador en práctica",delegates:"Participación por documentar",team:"Equipo de práctica",emergency:"Atención prestada; verificar medidas iniciales."};
-d.evidence=[{id:"E1",type:"testimonio",source:"Declaración inicial de supervisor",date:"2026-11-17",description:"Indica que se intervino el transportador; no presenció el momento del contacto.",status:"pendiente"},{id:"E2",type:"documento",source:"Registro de mantenimiento",date:"2026-11-17",description:"Existe una orden de intervención del equipo para esa mañana.",status:"verificada"},{id:"E3",type:"fisica",source:"Inspección simulada",date:"2026-11-17",description:"Se observa una parte móvil accesible en el área intervenida.",status:"verificada"}];
-d.timeline=[{id:"T1",when:"08:30",text:"Se inicia una intervención de mantenimiento (dato por contrastar).",source:"E1"},{id:"T2",when:"09:00",text:"Se reporta lesión durante la intervención.",source:"Comunicación inicial"}];
-d.facts=[{id:"H1",text:"Una parte móvil estaba accesible en el área intervenida.",evidenceId:"E3",status:"verificado"},{id:"H2",text:"Se produjo una lesión de mano durante la intervención.",evidenceId:"",status:"pendiente"}];return d}
-
+function demo(){
+const d=initial();
+d.demoMode=true;
+d.general={code:"DEMO-AT-2026-001",company:"Industrias Ejemplo C.A. (SIMULACIÓN)",place:"Planta simulada · Línea transportadora 2",date:"2026-10-20",time:"09:00",
+description:"Caso ficticio. Durante una intervención de mantenimiento de una banda transportadora, la mano de un técnico entró en la zona de atrapamiento del rodillo de retorno mientras la banda permanecía en movimiento. El evento ocasionó una lesión en la mano.",
+worker:"Trabajador A (identidad ficticia)",job:"Técnico de mantenimiento mecánico",consequence:"Lesión traumática de mano, caracterización clínica simulada",investigator:"Equipo docente de la Academia (ficticio)",role:"Servicio de Seguridad y Salud en el Trabajo",delegates:"Delegada de prevención (personaje ficticio)",team:"Servicio SST, mantenimiento y delegada de prevención",
+emergency:"09:01: parada de emergencia activada. 09:05: primeros auxilios y derivación. Equipo inmovilizado para preservar evidencias. Actuaciones simuladas."};
+d.legal={inpsasel:{at:"2026-10-20T09:22",proof:"SIM-INA-001 · CONSTANCIA FICTICIA, NO VÁLIDA"},committee:{at:"2026-10-20T11:15",proof:"SIM-CSSL-001 · Comunicación ficticia al Comité de Seguridad y Salud Laboral"},union:{at:"2026-10-20T11:20",proof:"SIM-SIN-001 · Comunicación ficticia al sindicato",applies:"si"},formal:{at:"2026-10-21T08:10",proof:"SIM-DECL-001 · Declaración de práctica, sin validez oficial"},
+notes:"Todas las horas y constancias son ficticias para ejercicios. La aplicación NO notifica a INPSASEL ni sustituye formularios oficiales."};
+d.evidence=[
+{id:"E01",type:"documento",source:"Orden de trabajo OT-135 (simulada)",date:"2026-10-20",description:"Orden de mantenimiento correctivo de transportador L2 emitida a las 08:10.",status:"verificada"},
+{id:"E02",type:"digital",source:"Registro PLC L2 (simulado)",date:"2026-10-20",description:"Registro indica accionamiento de motor entre 08:45 y 09:01.",status:"verificada"},
+{id:"E03",type:"digital",source:"Video del área (simulado)",date:"2026-10-20",description:"A las 08:58 se observa el resguardo abierto; a las 09:00, contacto de la mano con el rodillo durante movimiento.",status:"verificada"},
+{id:"E04",type:"documento",source:"Parte de primeros auxilios (simulado)",date:"2026-10-20",description:"Registra lesión de mano y primera atención a las 09:05; no incluye datos clínicos reales.",status:"verificada"},
+{id:"E05",type:"documento",source:"Procedimiento SST-PMT-07 Rev. 04 (simulado)",date:"2026-10-20",description:"Exige aislamiento de energías y verificación antes de intervenir zonas móviles.",status:"verificada"},
+{id:"E06",type:"documento",source:"Autorización AT-223 (simulada)",date:"2026-10-20",description:"Autorización firmada a las 08:50; casilla de verificación de aislamiento sin completar.",status:"verificada"},
+{id:"E07",type:"testimonio",source:"Declaración de supervisor (simulada)",date:"2026-10-20",description:"Indica que entendía que la banda estaba detenida; no describe una comprobación propia.",status:"pendiente"},
+{id:"E08",type:"testimonio",source:"Declaración del trabajador (simulada)",date:"2026-10-20",description:"Señala que recibió instrucciones de retirar material acumulado; debe contrastarse.",status:"pendiente"},
+{id:"E09",type:"fotografia",source:"Registro fotográfico posterior (simulado)",date:"2026-10-20",description:"Muestra resguardo abierto después del accidente; por sí solo no demuestra cuándo se abrió.",status:"verificada"},
+{id:"E10",type:"digital",source:"Registro de paro de emergencia (simulado)",date:"2026-10-20",description:"PLC registra activación del paro a las 09:01.",status:"verificada"},
+{id:"E11",type:"documento",source:"Auditoría interna AUD-0915 (simulada)",date:"2026-09-15",description:"En una muestra previa detectó listas de verificación de aislamiento incompletas para trabajos en transportadores; no consta evidencia de cierre en la copia examinada.",status:"verificada"}
+];
+d.timeline=[
+{id:"T01",when:"20/10/2026 08:10",text:"Se emite orden de mantenimiento correctivo del equipo L2.",source:"E01 · documento"},
+{id:"T02",when:"20/10/2026 08:45",text:"El registro PLC inicia intervalo con motor energizado.",source:"E02 · PLC"},
+{id:"T03",when:"20/10/2026 08:50",text:"Se firma autorización AT-223 con casilla de verificación de aislamiento sin completar.",source:"E06 · autorización"},
+{id:"T04",when:"20/10/2026 08:58",text:"El video muestra resguardo abierto.",source:"E03 · video"},
+{id:"T05",when:"20/10/2026 09:00",text:"Video muestra contacto de mano con rodillo en movimiento; se produce lesión.",source:"E03 y E04"},
+{id:"T06",when:"20/10/2026 09:01",text:"Se acciona parada de emergencia; termina intervalo de motor energizado.",source:"E10 y E02"},
+{id:"T07",when:"20/10/2026 09:05",text:"Se registra atención inicial.",source:"E04"}
+];
+const input=[
+["H01","Existía una orden de mantenimiento para el transportador L2.","E01","verificado"],
+["H02","El motor del transportador L2 permaneció energizado durante la intervención.","E02","verificado"],
+["H03","El resguardo del rodillo estaba abierto antes del contacto.","E03","verificado"],
+["H04","La mano del técnico contactó el rodillo mientras se movía.","E03","verificado"],
+["H05","El contacto ocasionó el atrapamiento y la lesión de mano.","E04","verificado"],
+["H06","La autorización aprobada tenía la casilla de aislamiento sin completar.","E06","verificado"],
+["H07","El procedimiento exigía aislamiento y verificación antes de intervenir.","E05","verificado"],
+["H08","Una auditoría previa identificó verificaciones de aislamiento incompletas.","E11","verificado"],
+["H09","La copia de la auditoría examinada no contiene constancia de cierre.","E11","verificado"],
+["H10","Se accionó la parada de emergencia a las 09:01.","E10","verificado"],
+["H11","El supervisor suponía que la banda estaba detenida.","E07","pendiente"],
+["H12","No se ejecutó ningún aislamiento de energía.","E07","pendiente"]
+];
+d.facts=input.map(([id,text,evidenceId,status])=>({id,text,evidenceId,status}));
+const positions={H08:[90,95],H09:[90,210],H07:[90,340],H06:[330,140],H01:[330,330],H02:[555,110],H03:[555,255],H04:[790,180],H05:[1030,180],H10:[790,390]};
+d.diagram.cytoscape=Object.entries(positions).map(([id,[x,y]])=>({group:"nodes",data:{id,label:d.facts.find(f=>f.id===id).text},position:{x,y}}));
+const conns=[["H02","H04","conjuncion"],["H03","H04","conjuncion"],["H04","H05","cadena"]];
+conns.forEach(([source,target,relacion],i)=>d.diagram.cytoscape.push({group:"edges",data:{id:"R0"+(i+1),source,target,relacion,relacionTexto:relacion==="conjuncion"?"conjunción":""}}));
+d.diagram.final="H05";
+d.analyses={
+H02:{classification:"inmediata",certainty:"sustentado",why:"E02 muestra energía del motor mientras se realizaba intervención; se vincula con H04. Corroborar su consistencia temporal con E03.",barrier:"Aislamiento de energía no confirmado con observación directa."},
+H03:{classification:"inmediata",certainty:"sustentado",why:"El video E03 muestra el resguardo abierto antes del contacto.",barrier:"Resguardo abierto mientras existía movimiento."},
+H04:{classification:"inmediata",certainty:"sustentado",why:"E03 documenta la exposición de la mano al punto de atrapamiento.",barrier:"Separación física ineficaz durante la tarea."},
+H05:{classification:"no_causal",certainty:"sustentado",why:"Es el evento final / consecuencia que se busca explicar.",barrier:"La parada de emergencia actuó después del contacto."},
+H06:{classification:"basica",certainty:"sustentado",why:"E06 acredita una verificación documental incompleta. No demuestra por sí misma que el aislamiento físico no se ejecutara.",barrier:"Control administrativo no comprobó el aislamiento."},
+H07:{classification:"no_causal",certainty:"sustentado",why:"E05 documenta lo establecido en el procedimiento; su existencia no demuestra cumplimiento.",barrier:"Procedimiento preventivo establecido, eficacia de aplicación por revisar."},
+H08:{classification:"raiz",certainty:"hipotesis",why:"La auditoría E11 respalda antecedentes de verificaciones incompletas; se debe investigar el sistema de cierre, supervisión y autorizaciones antes de confirmar una causa raíz.",barrier:"Seguimiento de no conformidades y verificación de aislamiento potencialmente insuficientes."},
+H09:{classification:"contribuyente",certainty:"pendiente",why:"No disponer de constancia en una copia NO equivale a demostrar que jamás se cerró la acción.",barrier:"Solicitar trazabilidad completa del plan de acciones."},
+H10:{classification:"no_causal",certainty:"sustentado",why:"Respuesta posterior al accidente, relevante para mitigación.",barrier:"Barrera de parada de emergencia actuó, pero no evitó el contacto."}
+};
+d.conclusion="En este CASO SIMULADO, el contacto de la mano con un rodillo en movimiento se relacionó con la accesibilidad de la zona de atrapamiento y la presencia de energía durante la intervención (E02–E04). La autorización de trabajo presentaba una verificación incompleta de aislamiento (E06). Se investigan posibles deficiencias sistémicas de autorización y seguimiento (E11); NO se consideran causas raíz demostradas hasta validar esos antecedentes.";
+d.limits="Pendiente contrastar E07 y E08; verificar cómo se ejecutó el aislamiento real, condiciones de interbloqueo, evidencia de puesta en cero y estado de cierre de observaciones de la auditoría anterior. El caso no constituye un expediente real ni un diagnóstico de origen ocupacional.";
+d.actions=[
+{id:"A01",factId:"H02",type:"inmediata",description:"Mantener equipo L2 fuera de servicio hasta efectuar aislamiento, verificación de cero energía y autorización segura para reingreso.",owner:"Jefatura de mantenimiento (simulada)",due:"2026-10-20",verification:"Acta y registro de medición de cero energía antes de la puesta en marcha.",status:"ejecutada",result:"Actuación inicial simulada; eficacia aún sin comprobar."},
+{id:"A02",factId:"H03",type:"correctiva",description:"Evaluar resguardo con enclavamiento o control técnico equivalente que impida operación con acceso al punto de atrapamiento.",owner:"Ingeniería y mantenimiento",due:"2026-11-05",verification:"Prueba documentada: sistema impide movimiento ante apertura del resguardo; verificar funcionalidad y resistencia a fallas.",status:"en_curso",result:"Prueba no realizada en el caso simulado."},
+{id:"A03",factId:"H06",type:"preventiva",description:"Modificar sistema de autorizaciones para impedir aprobación si falta verificación registrada del aislamiento y responsable del control.",owner:"Servicio de SST y operaciones",due:"2026-11-01",verification:"Revisar muestra de 10 permisos de mantenimiento; criterio: 100% con verificación completa y demostrable.",status:"pendiente",result:"Pendiente."},
+{id:"A04",factId:"H08",type:"preventiva",description:"Auditar otros transportadores y sistema de cierre de hallazgos de aislamiento; verificar si existe causa sistémica repetida.",owner:"Auditoría interna y Servicio SST",due:"2026-11-10",verification:"Informe de auditoría por equipo, seguimiento de hallazgos y verificación de acciones de cierre.",status:"pendiente",result:"Investigación ampliada pendiente."}
+];
+d.reviewDate="2026-10-20";
+return d;
+}
 /* INTERCAMBIO EXCEL: libro de varias hojas editable y reimportable. Excel es la fuente de intercambio, localStorage solo autoguardado. */
 const EXCEL_TAG="MAC-VE",EXCEL_VERSION="2";
 const bookSections=[
