@@ -31,7 +31,7 @@ jobs:
             page.on('console',m=>{if(m.type()==='error')console.log('CONSOLE_ERROR',m.text())});
             await page.goto('http://127.0.0.1:8765/',{waitUntil:'domcontentloaded'});
             await page.addStyleTag({content:'.login-gate{display:none!important}body.auth-locked{overflow:auto!important}#appShell{display:block!important}'});
-            await page.evaluate(()=>{const sh=document.getElementById('appShell');sh.hidden=false;sh.setAttribute('aria-hidden','false');window.MACApp.start({scope:'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'});});
+            await page.evaluate(()=>{const sh=document.getElementById('appShell');sh.hidden=false;sh.setAttribute('aria-hidden','false');document.body.classList.remove('auth-locked');window.MACApp.start({scope:'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'});});
             await page.waitForSelector('#reportPreview .printreport',{timeout:20000});
             const report=await page.evaluate(()=>({text:document.querySelector('#reportPreview').textContent.slice(0,650),img:[...document.querySelectorAll('#reportPreview .report-diagram img')].map(x=>({complete:x.complete,width:x.naturalWidth,height:x.naturalHeight,renderedWidth:x.getBoundingClientRect().width})),cards:document.querySelectorAll('#reportPreview .report-card').length}));
             console.log('REPORT',JSON.stringify(report));
