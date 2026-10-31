@@ -310,8 +310,10 @@ function downloadPDF(){
    pdf.setFillColor(0,123,133);pdf.rect(L,y-4,1.8,5+titleLines.length*5,"F");
    pdf.setTextColor(0,32,91);pdf.setFont("helvetica","bold");pdf.setFontSize(10);
    titleLines.forEach(line=>{need(6);pdf.text(line,L+4,y);y+=5});y+=5;
-   for(const f of fields){const label=f.querySelector(".report-field-label")?.textContent||"Dato";const val=f.querySelector(".report-field-value")?.textContent||"";paragraph(label,val)}
-   for(const p of paras){const label=p.querySelector("strong")?.textContent||"Detalle";paragraph(label,p.textContent.slice(label.length))}
+   for(const element of el.children){
+    if(element.matches(".report-fields"))for(const f of element.querySelectorAll(".report-field")){const label=f.querySelector(".report-field-label")?.textContent||"Dato";const val=f.querySelector(".report-field-value")?.textContent||"";paragraph(label,val)}
+    if(element.matches(".report-paragraph")){const label=element.querySelector("strong")?.textContent||"Detalle";paragraph(label,element.textContent.slice(label.length))}
+   }
    pdf.setDrawColor(211,226,231);pdf.line(L,y,R,y);y+=6;
   };
   function visit(el){
