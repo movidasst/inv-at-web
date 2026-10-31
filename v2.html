@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#007b85">
+<title>MAC · Investigación de accidentes de trabajo en Venezuela | Academia Movida SST</title>
+<meta name="description" content="Aplicación de investigación de accidentes de trabajo fundamentada en la LOPCYMAT, su Reglamento Parcial y la NT-04:2023. Árbol de causas, evidencias, causas raíz y plan preventivo.">
+<link rel="stylesheet" href="v2.css?v=20261031">
+<script src="https://cdn.jsdelivr.net/npm/cytoscape@3.33.1/dist/cytoscape.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dagre@0.8.5/dist/dagre.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script defer src="v2.js?v=20261031"></script>
+<script defer src="https://www.movidasst.com/analytics.js?v=20261025-ga4com2"></script>
+</head><body>
+<header class="head">
+<a href="https://www.movidasst.com" class="brand" aria-label="La Movida de SST · Inicio"><img src="https://raw.githubusercontent.com/movidasst/aplicaciones/main/logo-oficial-movida-sst-plus.png" alt="Logo La Movida de SST"><span>Academia Movida de SST<small>De la Reacción a la Prevención</small></span></a>
+<div class="header-actions"><span id="saved" class="muted" role="status">Guardado local</span><button type="button" id="new" class="btn danger">Nueva</button><button type="button" id="export" class="btn secondary">Exportar JSON</button><label class="btn secondary" for="import">Importar JSON</label><input type="file" id="import" accept=".json,application/json" hidden></div>
+</header>
+<div class="shell">
+<div class="hero"><span class="pill">Herramienta técnica · Venezuela</span><h1>Investigación de Accidentes de Trabajo</h1><p>Metodología, causalidad y prevención. Desarrollo guiado conforme a la LOPCYMAT, su Reglamento Parcial y la NT-04:2023, con método del árbol de causas y análisis de causas raíz.</p></div>
+<div class="progress-wrap"><div class="row between"><strong id="stepLabel">Etapa 1 de 9</strong><small class="muted">Los datos se guardan en este navegador</small></div><div class="progress"><div id="progressBar" style="width:0%"></div></div></div>
+<nav class="steps" id="steps" aria-label="Etapas de la investigación"></nav>
+<main class="page" id="stage" aria-live="polite"></main>
+<div class="end-nav"><button class="btn secondary" id="back">← Anterior</button><button class="btn" id="next">Siguiente →</button></div>
+<footer class="foot">Academia Movida de SST · Instrumentos técnicos de apoyo, no formularios oficiales de INPSASEL · <a href="https://www.movidasst.com">www.movidasst.com</a></footer>
+</div></body></html>
