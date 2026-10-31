@@ -132,7 +132,84 @@ const factOptions=[["","Selecciona un hecho causal"]].concat(s.facts.filter(f=>s
 s.actions.forEach((a,i)=>{const g=group(root,"Acción "+(i+1));const hd=E("div","row");hd.append(btn("Eliminar acción",()=>{if(confirm("¿Eliminar esta medida?")){s.actions.splice(i,1);save();render()}},"btn danger"));g.append(hd);const r=grid(g);field(r,"Hallazgo que controla",a.factId,v=>a.factId=v,"select",factOptions);field(r,"Tipo de medida",a.type,v=>a.type=v,"select",[["inmediata","Control inmediato"],["correctiva","Correctiva"],["preventiva","Preventiva"]]);field(g,"Acción técnica específica (qué se modificará)",a.description,v=>a.description=v,"textarea");const t=grid(g);field(t,"Responsable",a.owner,v=>a.owner=v);field(t,"Plazo comprometido",a.due,v=>a.due=v,"date");field(g,"Cómo se verificará su eficacia (prueba/indicador/criterio)",a.verification,v=>a.verification=v,"textarea");const u=grid(g);field(u,"Estado",a.status,v=>a.status=v,"select",[["pendiente","Pendiente"],["en_curso","En ejecución"],["ejecutada","Ejecutada (sin verificación)"],["eficaz","Eficacia comprobada"],["ineficaz","Medida ineficaz"]]);field(u,"Resultado de la verificación",a.result,v=>a.result=v,"textarea")});
 note(root,"Distingue «ejecutada» de «eficacia comprobada». Un control instalado no demuestra, por sí solo, que previene una recurrencia.");}
 function warnings(){const w=[];if(!s.general.date||!s.general.time||!s.general.description)w.push("Faltan fecha, hora o descripción inicial.");for(const k of ["inpsasel","committee","union","formal"])if((k!=="union"||s.legal.union.applies!=="no")&&(!s.legal[k].at||!s.legal[k].proof))w.push("Sin constancia completa de "+({"inpsasel":"notificación a INPSASEL","committee":"notificación al Comité","union":"notificación al sindicato","formal":"declaración formal"}[k])+".");if(!s.evidence.length)w.push("No hay evidencias registradas.");if(!s.timeline.length)w.push("No hay cronología.");if(!s.facts.some(f=>f.status==="verificado"))w.push("No hay hechos verificados.");for(const f of s.facts.filter(f=>f.status==="verificado")){const ev=s.evidence.find(e=>e.id===f.evidenceId);if(!ev||ev.status!=="verificada")w.push("Hecho sin evidencia verificada: "+f.text.slice(0,75));}if(!graphData().some(e=>e.group==="edges"))w.push("El árbol no tiene relaciones causales.");if(!s.diagram.final)w.push("No se marcó un acontecimiento final.");if(!Object.values(s.analyses).some(x=>x.classification==="inmediata"))w.push("No se ha clasificado ninguna causa inmediata.");if(!Object.values(s.analyses).some(x=>x.classification==="basica"))w.push("No se ha clasificado ninguna causa básica.");if(!s.actions.length)w.push("No se han definido medidas.");return w}
-function captureDiagram(){if(typeof window.cytoscape!=="function"||!graphData().some(e=>e.group==="nodes"))return "";let tmp;try{const holder=E("div");holder.style.cssText="position:fixed;left:-10000px;top:0;width:950px;height:600px;background:white";document.body.append(holder);tmp=cytoscape({container:holder,elements:graphData(),style:graphStyle(),layout:{name:"preset"}});tmp.fit(undefined,40);const p=tmp.png({full:true,scale:1.5,bg:"#ffffff"});tmp.destroy();holder.remove();return p}catch(e){if(tmp)tmp.destroy();return ""}}
+function captureDiagram(){
+ const entries=graphData(), allNodes=entries.filter(e=>e.group==="nodes"&&e.data?.id), allEdges=entries.filter(e=>e.group==="edges");
+ if(!allNodes.length)return "";
+ try{
+  const nodeMap=new Map(allNodes.map(e=>[e.data.id,e]));
+  const verified=new Set(s.facts.filter(f=>f.status==="verificado").map(f=>f.id));
+  const edges=allEdges.filter(e=>nodeMap.has(e.data.source)&&nodeMap.has(e.data.target)&&(!verified.size||(verified.has(e.data.source)&&verified.has(e.data.target))));
+  const ends=allNodes.filter(n=>!edges.some(e=>e.data.source===n.data.id)).map(n=>n.data.id);
+  const finalId=nodeMap.has(s.diagram.final)?s.diagram.final:(ends.find(id=>verified.has(id))||ends[0]||allNodes[0].data.id);
+  const included=new Set([finalId]), queue=[finalId];
+  while(queue.length){const target=queue.shift();for(const e of edges.filter(x=>x.data.target===target)){if(!included.has(e.data.source)){included.add(e.data.source);queue.push(e.data.source)}}}
+  if(included.size===1&&!edges.length)for(const n of allNodes.slice(0,8))included.add(n.data.id);
+  const selected=allNodes.filter(n=>included.has(n.data.id));
+  const links=edges.filter(e=>included.has(e.data.source)&&included.has(e.data.target));
+  const depth=new Map([[finalId,0]]);
+  for(let i=0;i<selected.length;i++){let changed=false;for(const e of links){const t=depth.get(e.data.target);if(t!==undefined&&(!depth.has(e.data.source)||depth.get(e.data.source)<t+1)){depth.set(e.data.source,t+1);changed=true}}if(!changed)break}
+  for(const n of selected)if(!depth.has(n.data.id))depth.set(n.data.id,1);
+  const maxDepth=Math.min(8,Math.max(0,...depth.values()));
+  const layers=Array.from({length:maxDepth+1},()=>[]);
+  selected.forEach(n=>layers[Math.max(0,maxDepth-Math.min(maxDepth,depth.get(n.data.id)||0))].push(n));
+  layers.forEach(a=>a.sort((a,b)=>(a.position?.y||0)-(b.position?.y||0)));
+  const cardW=288, gapX=126, margin=70, top=154, bottom=108;
+  const canvas=document.createElement("canvas"),ctx=canvas.getContext("2d");
+  if(!ctx)return "";
+  const font='18px Arial', lineHeight=25, innerWidth=cardW-34;
+  ctx.font=font;
+  const wrapText=(v)=>{
+   const words=String(v||"Sin descripción").split(/\s+/), lines=[];let current="";
+   for(const word of words){const next=current?current+" "+word:word;if(ctx.measureText(next).width>innerWidth&&current){lines.push(current);current=word}else current=next}
+   if(current)lines.push(current);return lines;
+  };
+  const boxes=new Map();
+  for(const n of selected){const fact=s.facts.find(f=>f.id===n.data.id);const lines=wrapText(fact?.text||n.data.label);boxes.set(n.data.id,{id:n.data.id,lines,height:Math.max(112,77+lines.length*lineHeight)})}
+  const layerRequired=layers.map(layer=>layer.reduce((v,n)=>v+boxes.get(n.data.id).height,0)+Math.max(0,layer.length-1)*34);
+  const W=Math.max(900,margin*2+layers.length*cardW+(layers.length-1)*gapX);
+  const H=Math.max(685,Math.max(0,...layerRequired)+top+bottom+40);
+  canvas.width=W*2;canvas.height=H*2;ctx.scale(2,2);
+  ctx.fillStyle="#ffffff";ctx.fillRect(0,0,W,H);
+  ctx.fillStyle="#00205b";ctx.fillRect(0,0,W,110);
+  ctx.fillStyle="#00aaa8";ctx.fillRect(0,104,W,6);
+  ctx.fillStyle="#ffffff";ctx.font="bold 30px Arial";ctx.textAlign="left";ctx.fillText("ÁRBOL DE CAUSAS",margin,51);
+  ctx.font="17px Arial";ctx.fillStyle="#d4eff1";ctx.fillText("Hechos comprobados · relaciones causales documentadas · antecedente → consecuencia",margin,83);
+  const positions=new Map();
+  for(let col=0;col<layers.length;col++){
+   const layer=layers[col], needed=layerRequired[col], start=top+Math.max(0,(H-top-bottom-needed)/2), x=margin+col*(cardW+gapX);
+   let y=start;
+   for(const n of layer){const b=boxes.get(n.data.id);positions.set(n.data.id,{x,y,w:cardW,h:b.height});y+=b.height+34}
+  }
+  const roundRect=(x,y,w,h,r)=>{ctx.beginPath();ctx.roundRect(x,y,w,h,r)};
+  // Dibujar relaciones primero para que nunca crucen el texto de los nodos.
+  for(const e of links){
+   const a=positions.get(e.data.source),b=positions.get(e.data.target);if(!a||!b)continue;
+   const sx=a.x+a.w,sy=a.y+a.h/2, tx=b.x-10,ty=b.y+b.h/2, delta=Math.max(35,(tx-sx)*.52);
+   ctx.beginPath();ctx.moveTo(sx,sy);ctx.bezierCurveTo(sx+delta,sy,tx-delta,ty,tx,ty);
+   ctx.strokeStyle="#00888f";ctx.lineWidth=3.2;ctx.stroke();
+   ctx.beginPath();ctx.moveTo(tx+9,ty);ctx.lineTo(tx-3,ty-8);ctx.lineTo(tx-3,ty+8);ctx.closePath();ctx.fillStyle="#00888f";ctx.fill();
+  }
+  for(const n of selected){
+   const b=boxes.get(n.data.id),p=positions.get(n.data.id),isFinal=n.data.id===finalId;
+   ctx.shadowColor="rgba(0,32,91,0.14)";ctx.shadowBlur=15;ctx.shadowOffsetY=5;
+   roundRect(p.x,p.y,p.w,p.h,15);ctx.fillStyle=isFinal?"#fff5d7":"#f4fbfb";ctx.fill();ctx.shadowColor="transparent";ctx.shadowBlur=0;ctx.shadowOffsetY=0;
+   ctx.strokeStyle=isFinal?"#f0ad00":"#007b85";ctx.lineWidth=isFinal?3:2;ctx.stroke();
+   ctx.fillStyle=isFinal?"#805800":"#007b85";ctx.font="bold 15px Arial";ctx.textAlign="left";
+   ctx.fillText(isFinal?n.data.id+" · HECHO FINAL":n.data.id+" · HECHO VERIFICADO",p.x+17,p.y+28);
+   ctx.fillStyle="#00205b";ctx.font=font;
+   b.lines.forEach((line,i)=>ctx.fillText(line,p.x+17,p.y+58+i*lineHeight));
+  }
+  const conjunctions=new Set(links.filter(e=>e.data.relacion==="conjuncion").map(e=>e.data.target));
+  if(conjunctions.size){for(const id of conjunctions){const b=positions.get(id);if(!b)continue;ctx.fillStyle="#006b76";ctx.font="bold 14px Arial";ctx.textAlign="right";ctx.fillText("CONJUNCIÓN",b.x-16,b.y-11)}}
+  ctx.fillStyle="#e6f1f5";ctx.fillRect(0,H-78,W,78);
+  ctx.textAlign="left";ctx.font="16px Arial";ctx.fillStyle="#26435e";
+  ctx.fillText("Lectura: de izquierda a derecha · Las flechas representan relaciones, no solo secuencias temporales.",margin,H-47);
+  const excluded=allNodes.length-selected.length;
+  ctx.font="14px Arial";ctx.fillStyle="#526e80";
+  ctx.fillText("MAC · Academia Movida de SST"+(excluded?" · "+excluded+" hecho(s) sin conexión causal comprobada se documentan por separado.":""),margin,H-23);
+  return canvas.toDataURL("image/png");
+ }catch(e){console.error("No se pudo generar el árbol:",e);return ""}
+}
 function renderReportHtml(){const rows=(arr,keys)=>arr.length?"<table><thead><tr>"+keys.map(k=>"<th>"+esc(k[0])+"</th>").join("")+"</tr></thead><tbody>"+arr.map(o=>"<tr>"+keys.map(k=>"<td>"+esc(o[k[1]]||"—")+"</td>").join("")+"</tr>").join("")+"</tbody></table>":"<p>No registrado.</p>";
 const evidenceRows=s.evidence.map((e,i)=>({...e,index:"E"+(i+1)}));const factsRows=s.facts.map((f,i)=>({...f,index:"H"+(i+1),evidence:(s.evidence.find(e=>e.id===f.evidenceId)||{}).source||"No asociada"}));const causeRows=s.facts.filter(f=>s.analyses[f.id]).map(f=>({fact:f.text,classification:({inmediata:"Inmediata",basica:"Básica",raiz:"Posible raíz",contribuyente:"Contribuyente",no_causal:"No causal",sin_clasificar:"Sin clasificar"})[s.analyses[f.id].classification],certainty:s.analyses[f.id].certainty,why:s.analyses[f.id].why,barrier:s.analyses[f.id].barrier}));const acts=s.actions.map(a=>({...a,fact:(s.facts.find(f=>f.id===a.factId)||{}).text||"Sin vincular"}));
 const image=captureDiagram();const w=warnings();let html='<article class="printreport">'+(s.isDemo?'<div class="report-demo-watermark">DEMOSTRACIÓN ACADÉMICA · CASO FICTICIO · SIN VALIDEZ OFICIAL<br>Expediente de práctica con hechos simulados y algunas hipótesis deliberadamente pendientes de verificar.</div>':'')+'<div class="report-h"><h1>Informe técnico de investigación de accidente de trabajo</h1><p>Academia Movida de SST · www.movidasst.com · Instrumento técnico de apoyo, no formulario oficial</p><p><strong>Referencia:</strong> '+esc(s.general.code||"Sin código")+' · <strong>Entidad:</strong> '+esc(s.general.company||"No indicada")+'</p></div>';
