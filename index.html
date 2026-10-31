@@ -12,7 +12,7 @@
 <script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script defer src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script defer src="v2.js?v=20261031d"></script>
+<script defer src="v2.js?v=20261031e"></script>
 <script defer src="auth.js?v=20261031d"></script>
 <script defer src="https://www.movidasst.com/analytics.js?v=20261025-ga4com2"></script>
 </head><body class="auth-locked">
@@ -60,6 +60,13 @@
 </header>
 <div class="shell">
 <div class="hero"><span class="pill">Herramienta técnica · Venezuela</span><h1>Investigación de Accidentes de Trabajo</h1><p>Metodología, causalidad y prevención. Desarrollo guiado conforme a la LOPCYMAT, su Reglamento Parcial y la NT-04:2023, con método del árbol de causas y análisis de causas raíz.</p></div>
+<section id="demoBanner" class="demo-banner" aria-label="Demostración y gestión de investigación">
+<div class="demo-banner-copy"><span id="demoLoadedLabel" class="demo-label">Investigación de prueba disponible</span><p id="demoSummary">Puedes cargar un expediente completo con un caso ficticio, recorrer sus etapas y consultar el informe inmediatamente.</p></div>
+<div class="demo-banner-actions">
+<button class="btn secondary" id="loadDemoBtn" type="button">Cargar demo completa</button>
+<button class="btn" id="openDemoReportBtn" type="button" hidden>Ver informe completo</button>
+<button class="btn danger" id="clearDemoBtn" type="button" hidden>Borrar demo y empezar</button>
+</div></section>
 <div class="progress-wrap"><div class="row between"><strong id="stepLabel">Etapa 1 de 9</strong><small class="muted">Los datos se guardan en este navegador</small></div><div class="progress"><div id="progressBar" style="width:0%"></div></div></div>
 <nav class="steps" id="steps" aria-label="Etapas de la investigación"></nav>
 <main class="page" id="stage" aria-live="polite"></main>
