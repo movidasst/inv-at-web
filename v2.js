@@ -247,7 +247,55 @@ const w=warnings();if(w.length){const g=group(root,"Aspectos pendientes ("+w.len
 const bar=E("div","row");bar.append(btn("Actualizar vista previa",()=>preview()));bar.append(btn("Descargar PDF",()=>downloadPDF(),"btn"));bar.append(btn("Imprimir",()=>window.print()));root.append(bar);
 const prev=E("div","item");prev.id="reportPreview";prev.style.marginTop="15px";root.append(prev);preview();
 function preview(){prev.innerHTML=renderReportHtml()}
-function downloadPDF(){if(typeof window.html2pdf!=="function"){alert("No se cargó la biblioteca de PDF. Usa Imprimir → Guardar como PDF.");return}preview();window.html2pdf().set({margin:[10,10,12,10],filename:"investigacion_accidente_"+(s.general.code||"mac")+".pdf",image:{type:"jpeg",quality:.97},html2canvas:{scale:1.7,useCORS:true},jsPDF:{unit:"mm",format:"a4",orientation:"portrait"},pagebreak:{mode:["css","legacy"],avoid:["tr",".report-section"]}}).from(prev).save()}
+function downloadPDF(){
+ if(typeof window.html2pdf!=="function"){alert("No se cargó la biblioteca de PDF. Comprueba tu conexión e inténtalo nuevamente.");return}
+ const pdfBtn=Array.from(document.querySelectorAll("#stage button")).find(b=>b.textContent==="Descargar PDF");
+ const filename="MAC_Informe_"+String(s.general.code||"investigacion").replace(/[^a-zA-Z0-9_-]/g,"_")+".pdf";
+ const treeImage=captureDiagram();
+ const holder=document.createElement("div");
+ holder.className="mac-pdf-export";
+ holder.style.cssText="position:fixed;left:-12000px;top:0;width:755px;background:white;pointer-events:none;z-index:-99999";
+ holder.innerHTML=renderReportHtml({forPdf:true});
+ document.body.appendChild(holder);
+ if(pdfBtn){pdfBtn.disabled=true;pdfBtn.textContent="Generando PDF…"}
+ const worker=window.html2pdf().set({
+  margin:[14,12,17,12],
+  filename,
+  image:{type:"jpeg",quality:.96},
+  html2canvas:{scale:1.6,useCORS:true,backgroundColor:"#ffffff",logging:false,scrollX:0,scrollY:0,windowWidth:1200},
+  jsPDF:{unit:"mm",format:"a4",orientation:"portrait",compress:true},
+  pagebreak:{mode:["css","legacy"],avoid:[".report-card",".report-field",".report-demo-watermark",".report-cover","tr"]}
+ });
+ worker.from(holder.firstElementChild).toPdf().get("pdf").then(pdf=>{
+  if(treeImage){
+   pdf.addPage("a4","landscape");
+   const width=pdf.internal.pageSize.getWidth(),height=pdf.internal.pageSize.getHeight();
+   pdf.setFillColor(0,32,91);pdf.rect(0,0,width,31,"F");
+   pdf.setTextColor(255,255,255);pdf.setFont("helvetica","bold");pdf.setFontSize(17);
+   pdf.text("Anexo gráfico · Árbol de causas",14,17);
+   pdf.setFont("helvetica","normal");pdf.setFontSize(9);
+   pdf.text(String(s.general.code||"Investigación"),width-14,17,{align:"right"});
+   const imageProps=pdf.getImageProperties(treeImage);
+   const usableW=width-26,usableH=height-51;
+   const ratio=Math.min(usableW/imageProps.width,usableH/imageProps.height);
+   const drawW=imageProps.width*ratio,drawH=imageProps.height*ratio;
+   pdf.addImage(treeImage,"PNG",(width-drawW)/2,34+(usableH-drawH)/2,drawW,drawH,undefined,"FAST");
+   pdf.setDrawColor(204,223,229);pdf.line(13,height-15,width-13,height-15);
+   pdf.setTextColor(52,78,96);pdf.setFontSize(8.5);
+   pdf.text("Conexiones verificadas · Sentido causal: antecedente hacia consecuencia · No se infieren causas raíz automáticamente.",14,height-10);
+  }
+  const count=pdf.getNumberOfPages();
+  for(let i=1;i<=count;i++){
+   pdf.setPage(i);
+   const pw=pdf.internal.pageSize.getWidth(),ph=pdf.internal.pageSize.getHeight();
+   pdf.setFont("helvetica","normal");pdf.setFontSize(8);pdf.setTextColor(93,112,127);
+   pdf.text("MAC · Academia Movida de SST · "+(s.isDemo?"CASO FICTICIO · ":"")+String(s.general.code||"Sin código"),12,ph-8);
+   pdf.text(i+" / "+count,pw-12,ph-8,{align:"right"});
+  }
+  pdf.save(filename);
+ }).catch(err=>{console.error("Error generando informe PDF",err);alert("No se pudo generar el PDF. Revisa que el navegador tenga memoria disponible e inténtalo otra vez.");})
+ .finally(()=>{holder.remove();if(pdfBtn){pdfBtn.disabled=false;pdfBtn.textContent="Descargar PDF"}});
+}
 }
 function demo(){
 const d=initial();
