@@ -45,17 +45,18 @@ function link(root,text,url){const a=E("a","",text);a.href=url;a.target="_blank"
 function due(hours){const g=s.general;if(!g.date||!g.time)return "Registra fecha y hora del accidente";const [y,m,day]=g.date.split("-").map(Number),[hh,mm]=g.time.split(":").map(Number);const d=new Date(Date.UTC(y,m-1,day,hh,mm)+Math.round(hours*3600000));if(Number.isNaN(d.getTime()))return "Fecha u hora inválidas";const pad=x=>String(x).padStart(2,"0");return pad(d.getUTCDate())+"/"+pad(d.getUTCMonth()+1)+"/"+d.getUTCFullYear()+" · "+pad(d.getUTCHours())+":"+pad(d.getUTCMinutes())+" h (Venezuela)"}
 function headerNav(){const nav=$("steps");nav.innerHTML="";STEPS.forEach((name,i)=>{const b=btn((i===step?"● ":"")+i+". "+name,()=>goto(i),"step"+(i===step?" current":""));nav.append(b)});$("progressBar").style.width=Math.round(step/(STEPS.length-1)*100)+"%";$("stepLabel").textContent="Etapa "+(step+1)+" de "+STEPS.length}
 function goto(i){if(cy){save();cy.destroy();cy=null}step=Math.min(STEPS.length-1,Math.max(0,i));render();window.scrollTo({top:0,behavior:"smooth"})}
-function render(){headerNav();const root=$("stage");root.innerHTML="";const renders=[intro,identification,legal,evidences,facts,diagram,analysis,actions,report];renders[step](root);if(s.demoMode&&step>0)demoTip(root,step);$("back").disabled=step===0;$("next").disabled=step===STEPS.length-1;$("next").textContent=step===STEPS.length-2?"Ver informe →":"Siguiente →"}
+function render(){headerNav();updateDemoControls();const root=$("stage");root.innerHTML="";const renders=[intro,identification,legal,evidences,facts,diagram,analysis,actions,report];renders[step](root);if(s.demoMode&&step>0)demoTip(root,step);$("back").disabled=step===0;$("next").disabled=step===STEPS.length-1;$("next").textContent=step===STEPS.length-2?"Ver informe →":"Siguiente →"}
 function intro(root){pTitle(root,"Investigación de Accidentes de Trabajo","Aplicación profesional y educativa · Academia Movida de SST · LOPCYMAT, Reglamento Parcial y NT-04:2023");
 note(root,"Ruta práctica: identificación → actuaciones legales → evidencias → hechos → árbol de causas → causas inmediatas, básicas y raíz → medidas → informe. Los formularios creados aquí son instrumentos técnicos de apoyo y no sustituyen los oficiales del INPSASEL.");
 const gg=grid(root,"three");[["1 · Marco legal","Art. 69 y arts. 73–76 de LOPCYMAT; arts. 83–85 del Reglamento."],["2 · Investigación técnica","NT-04:2023, art. 19: recopilación objetiva y análisis de causas inmediatas y básicas."],["3 · Método y prevención","Árbol de causas OIT y profundización técnica en causas raíz y controles."]].forEach(x=>{const c=E("div","item");c.append(E("h3","",x[0]));c.append(E("p","",x[1]));gg.append(c)});
 const g=group(root,"Investigación de prueba y demostración guiada");
 g.append(E("p","", "Incluye un expediente ficticio completo, con evidencias, cronología, árbol, análisis de causas y medidas. No contiene datos reales ni comprobantes oficiales."));
 const row=E("div","row");
-row.append(btn("Cargar investigación de prueba",()=>{if(confirm("¿Cargar el caso ficticio completo y sustituir la investigación abierta?")){s=demo();s.demoMode=false;save();goto(1)}},"btn"));
-row.append(btn("Iniciar demostración guiada",()=>{if(confirm("¿Abrir el caso de demostración y seguirlo paso a paso? Se reemplazará el trabajo actual.")){s=demo();s.demoMode=true;save();goto(1)}}));
+row.append(btn("Ver investigación completa e informe",()=>loadFullDemo(false),"btn"));
+row.append(btn("Recorrer demostración guiada",()=>loadFullDemo(true)));
 row.append(btn("Descargar caso de prueba en Excel",()=>downloadWorkbook(demo(),"DEMO_AT_2026")));
-row.append(btn("Iniciar investigación vacía",()=>goto(1)));
+row.append(btn("Comenzar investigación real",()=>startNewInvestigation()));
+if(s.isDemo)row.append(btn("Borrar demostración actual",()=>discardDemo(),"btn danger"));
 g.append(row);
 const priv=group(root,"Tratamiento de datos y límites");priv.append(E("p","", "La información se guarda automáticamente solo en el almacenamiento local de este navegador. No hay cuenta, respaldo remoto ni recuperación entre dispositivos. Para conservarla, exporta un Excel y guárdalo en un lugar seguro. Evita usar datos personales o médicos sensibles en dispositivos compartidos. No se envían expedientes a servicios de IA."));priv.append(E("p","muted","La aplicación ayuda a documentar una investigación; no determina oficialmente el origen ocupacional ni certifica cumplimiento legal."));
 const rr=group(root,"Referencias de trabajo");Object.keys(refs).forEach(k=>{const x=E("p");x.append(E("strong","",refs[k]+" · "));link(x,"Consultar fuente",URLs[k]);rr.append(x)})}
@@ -152,6 +153,7 @@ function downloadPDF(){if(typeof window.html2pdf!=="function"){alert("No se carg
 function demo(){
 const d=initial();
 d.demoMode=true;
+d.isDemo=true;
 d.general={code:"DEMO-AT-2026-001",company:"Industrias Ejemplo C.A. (SIMULACIÓN)",place:"Planta simulada · Línea transportadora 2",date:"2026-10-20",time:"09:00",
 description:"Caso ficticio. Durante una intervención de mantenimiento de una banda transportadora, la mano de un técnico entró en la zona de atrapamiento del rodillo de retorno mientras la banda permanecía en movimiento. El evento ocasionó una lesión en la mano.",
 worker:"Trabajador A (identidad ficticia)",job:"Técnico de mantenimiento mecánico",consequence:"Lesión traumática de mano, caracterización clínica simulada",investigator:"Equipo docente de la Academia (ficticio)",role:"Servicio de Seguridad y Salud en el Trabajo",delegates:"Delegada de prevención (personaje ficticio)",team:"Servicio SST, mantenimiento y delegada de prevención",
@@ -271,16 +273,68 @@ const endings=Object.fromEntries(rows("CONCLUSIONES").slice(1).map(row=>[row[0],
 const evidenceIds=new Set(obj.evidence.map(x=>x.id));for(const f of obj.facts){if(f.evidenceId&&!evidenceIds.has(f.evidenceId))throw Error("HECHOS contiene un ID de evidencia no encontrado: "+f.evidenceId)}
 for(const a of obj.actions){if(a.factId&&!factIds.has(a.factId))throw Error("MEDIDAS contiene un ID de hecho no encontrado: "+a.factId)}
 const allIds=obj.evidence.map(x=>x.id),unique=new Set(allIds);if(unique.size!==allIds.length)throw Error("Hay ID duplicados en EVIDENCIAS.");
+obj.isDemo=/^DEMO-AT-2026-001$/.test(obj.general.code);
+obj.demoMode=false;
 return obj}
 function importWorkbook(input){if(!excelAvailable())return;const file=input?.files?.[0];if(!file)return;if(file.size>8*1024*1024){alert("El archivo supera los 8 MB permitidos.");input.value="";return}
-file.arrayBuffer().then(buf=>{const book=window.XLSX.read(buf,{type:"array",cellDates:false});const obj=workbookToState(book);if(confirm("Se importará el expediente «"+(obj.general.code||"Sin código")+"» y sustituirá la investigación actual. ¿Continuar?")){s=obj;save();goto(1);alert("Investigación Excel importada con sus evidencias, árbol de causas, medidas y conclusiones.")}}).catch(e=>{console.error(e);alert("No se pudo importar el Excel: "+e.message)}).finally(()=>input.value="")}
+file.arrayBuffer().then(buf=>{const book=window.XLSX.read(buf,{type:"array",cellDates:false});const obj=workbookToState(book);if(confirm("Se importará el expediente «"+(obj.general.code||"Sin código")+"» y sustituirá la investigación actual. ¿Continuar?")){s=obj;save();goto(obj.isDemo?8:1);alert("Investigación Excel importada con sus evidencias, árbol de causas, medidas y conclusiones.")}}).catch(e=>{console.error(e);alert("No se pudo importar el Excel: "+e.message)}).finally(()=>input.value="")}
+
+
+function switchInvestigation(next,target=8){
+  if(cy){cy.destroy();cy=null}
+  s=next;
+  save();
+  goto(target);
+}
+function isWorkInProgress(){
+  return Boolean(s.general.code||s.general.date||s.general.description||s.evidence.length||s.facts.length||s.actions.length);
+}
+function loadFullDemo(guided=false){
+  const message = s.isDemo
+    ? "¿Reiniciar la demostración con los datos ficticios originales? Se perderán los cambios realizados en la demo."
+    : "¿Cargar el caso de demostración? Reemplazará la investigación actual de este navegador. Exporta primero a Excel si deseas conservarla.";
+  if(isWorkInProgress()&&!confirm(message))return;
+  const d=demo();
+  d.isDemo=true;
+  d.demoMode=guided;
+  switchInvestigation(d,guided?1:8);
+}
+function discardDemo(){
+  if(!s.isDemo)return;
+  if(!confirm("¿Borrar TODOS los datos de la demostración y empezar una investigación vacía? Si deseas conservar el ejemplo, exporta antes su Excel."))return;
+  switchInvestigation(initial(),1);
+}
+function startNewInvestigation(){
+  const message=s.isDemo
+    ? "¿Borrar la demostración y comenzar una investigación REAL completamente vacía?"
+    : "¿Iniciar una investigación vacía? Los datos actuales de este navegador serán reemplazados. Exporta antes tu expediente a Excel si lo necesitas.";
+  if(!confirm(message))return;
+  switchInvestigation(initial(),1);
+}
+function updateDemoControls(){
+  const active=Boolean(s.isDemo);
+  const label=$("demoLoadedLabel"),summary=$("demoSummary");
+  if(label)label.textContent=active?"MODO DEMOSTRACIÓN · EXPEDIENTE FICTICIO":"Demostración completa disponible";
+  if(summary)summary.textContent=active
+    ?"Caso DEMO-AT-2026-001 cargado: "+s.evidence.length+" evidencias, "+s.facts.length+" hechos, "+s.diagram.cytoscape.filter(x=>x.group==="nodes").length+" nodos, "+s.actions.length+" medidas. Consulta el informe o explora las 8 etapas. Puedes borrar el ejemplo cuando quieras."
+    :"Carga el caso ficticio con datos, evidencias, árbol de causas, medidas e informe ya elaborado. Después podrás borrarlo y utilizar MAC normalmente.";
+  const reportBtn=$("openDemoReportBtn"),clearBtn=$("clearDemoBtn"),loadBtn=$("loadDemoBtn");
+  if(reportBtn)reportBtn.hidden=!active;
+  if(clearBtn)clearBtn.hidden=!active;
+  if(loadBtn)loadBtn.textContent=active?"Reiniciar demostración":"Cargar demo completa";
+  const bar=$("demoBanner");
+  if(bar)bar.classList.toggle("demo-active",active);
+}
 
 function bindHeader(){
-$("new").onclick=()=>{if(confirm("¿Iniciar una nueva investigación? Guarda o exporta antes la investigación actual.")){s=initial();save();goto(0)}};
+$("new").onclick=()=>startNewInvestigation();
 $("export").onclick=()=>downloadWorkbook();
 $("import").onchange=ev=>importWorkbook(ev.target);
 $("back").onclick=()=>goto(step-1);
 $("next").onclick=()=>goto(step+1);
+$("loadDemoBtn").onclick=()=>loadFullDemo(false);
+$("openDemoReportBtn").onclick=()=>goto(8);
+$("clearDemoBtn").onclick=()=>discardDemo();
 }
 
 // Iniciar únicamente después de la validación de credenciales del registro de integrantes.
@@ -291,7 +345,14 @@ window.MACApp = {
     if(typeof scope !== "string" || !/^[a-f0-9]{64}$/.test(scope)) return;
     STORAGE = "mac-ve-v2-member-" + scope;
     s = initial();
+    const hasSavedCase = Boolean(localStorage.getItem(STORAGE));
     load();
+    if(!hasSavedCase){
+      s=demo();
+      s.demoMode=false;
+      s.isDemo=true;
+    }
+    step=s.isDemo?8:0;
     bindHeader();
     render();
     save();
