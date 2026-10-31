@@ -254,7 +254,7 @@ function downloadPDF(){
  const treeImage=captureDiagram();
  const holder=document.createElement("div");
  holder.className="mac-pdf-export";
- holder.style.cssText="position:fixed;left:-12000px;top:0;width:755px;background:white;pointer-events:none;z-index:-99999";
+ holder.style.cssText="position:absolute;left:0;top:0;width:703px;background:white;pointer-events:none;z-index:-1";
  holder.innerHTML=renderReportHtml({forPdf:true});
  document.body.appendChild(holder);
  if(pdfBtn){pdfBtn.disabled=true;pdfBtn.textContent="Generando PDF…"}
@@ -280,9 +280,6 @@ function downloadPDF(){
    const ratio=Math.min(usableW/imageProps.width,usableH/imageProps.height);
    const drawW=imageProps.width*ratio,drawH=imageProps.height*ratio;
    pdf.addImage(treeImage,"PNG",(width-drawW)/2,34+(usableH-drawH)/2,drawW,drawH,undefined,"FAST");
-   pdf.setDrawColor(204,223,229);pdf.line(13,height-15,width-13,height-15);
-   pdf.setTextColor(52,78,96);pdf.setFontSize(8.5);
-   pdf.text("Conexiones verificadas · Sentido causal: antecedente hacia consecuencia · No se infieren causas raíz automáticamente.",14,height-10);
   }
   const count=pdf.getNumberOfPages();
   for(let i=1;i<=count;i++){
