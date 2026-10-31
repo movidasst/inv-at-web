@@ -63,14 +63,14 @@ const rr=group(root,"Referencias de trabajo");Object.keys(refs).forEach(k=>{cons
 function demoTip(root,stage){
 const t=[
 "",
-"**Módulo 1.** Comprueba que los datos iniciales describan el evento sin atribuir culpas. Identidades y entidad son ficticias.",
-"**Módulo 1.** Revisa las cuatro comunicaciones simuladas al INPSASEL, al CSSL y al sindicato, además de la declaración formal. Ninguna constancia tiene validez legal.",
-"**Módulo 2.** Lee E01–E11. Fíjate en que E07–E08 son testimonios pendientes y E09 (foto posterior) no prueba el estado previo.",
-"**Módulo 2.** Compara hechos verificados con H11 y H12, que permanecen pendientes. No deben utilizarse como hechos definitivos.",
-"**Módulo 3.** Revisa las conjunciones: banda energizada + resguardo abierto → posibilidad de contacto. El diagrama contiene hallazgos adicionales aún sin conexión causal verificada.",
-"**Módulo 3.** Observa que H08 se presenta como POSIBLE causa raíz, no como conclusión comprobada. E11 obliga a profundizar en la gestión del aislamiento.",
-"**Módulo 4.** Examina las cuatro medidas, sus responsables y cómo verificar la eficacia; una acción ejecutada no es necesariamente eficaz.",
-"**Módulo 4.** El informe reúne el expediente y advierte sobre información pendiente. También puedes descargarlo en PDF y exportar toda la investigación a Excel."
+"Módulo 1. Comprueba que los datos iniciales describan el evento sin atribuir culpas. Identidades y entidad son ficticias.",
+"Módulo 1. Revisa las cuatro comunicaciones simuladas al INPSASEL, al CSSL y al sindicato, además de la declaración formal. Ninguna constancia tiene validez legal.",
+"Módulo 2. Lee E01–E11. Fíjate en que E07–E08 son testimonios pendientes y E09 (foto posterior) no prueba el estado previo.",
+"Módulo 2. Compara hechos verificados con H11 y H12, que permanecen pendientes. No deben utilizarse como hechos definitivos.",
+"Módulo 3. Revisa las conjunciones: banda energizada + resguardo abierto → posibilidad de contacto. El diagrama contiene hallazgos adicionales aún sin conexión causal verificada.",
+"Módulo 3. Observa que H08 se presenta como POSIBLE causa raíz, no como conclusión comprobada. E11 obliga a profundizar en la gestión del aislamiento.",
+"Módulo 4. Examina las cuatro medidas, sus responsables y cómo verificar la eficacia; una acción ejecutada no es necesariamente eficaz.",
+"Módulo 4. El informe reúne el expediente y advierte sobre información pendiente. También puedes descargarlo en PDF y exportar toda la investigación a Excel."
 ];
 const n=E("aside","note");const r=E("div","row between");r.append(E("strong","", "🎓 DEMOSTRACIÓN GUIADA · ETAPA "+stage));r.append(btn("Salir de guía",()=>{s.demoMode=false;save();render()},"btn secondary"));n.append(r);const p=E("p","",t[stage]||"");n.append(p);
 root.insertBefore(n,root.firstChild.nextSibling);
