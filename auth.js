@@ -6,7 +6,7 @@
   const PUBLISHABLE_KEY = 'sb_publishable_bRnkA6PA8-v073nrw9zxiQ_8rVGiOn1';
   const ACCESS_SESSION_KEY = 'movida-sst-mac-session';
   const ACCESS_ATTEMPTS_KEY = 'movida-sst-mac-attempts';
-  const ACCESS_DURATION = 20 * 60 * 1000;
+  const ACCESS_DURATION = 60 * 60 * 1000;
   const BLOCK_DURATION = 15 * 60 * 1000;
   const MAX_ATTEMPTS = 5;
   let expiryTimer = null;
@@ -101,7 +101,7 @@
     const expired=sessionStorage.getItem("movida-sst-mac-expired")==="1";
     sessionStorage.removeItem("movida-sst-mac-expired");
     const limit=attempts();
-    if(expired)message("Tu sesión de 20 minutos terminó. Ingresa nuevamente para continuar.");
+    if(expired)message("Tu sesión de 60 minutos terminó. Ingresa nuevamente para continuar.");
     else if(limit.blockedUntil>Date.now())message(blocked(limit.blockedUntil));
     $("memberId").focus();
   }
