@@ -248,50 +248,118 @@ const bar=E("div","row");bar.append(btn("Actualizar vista previa",()=>preview())
 const prev=E("div","item");prev.id="reportPreview";prev.style.marginTop="15px";root.append(prev);preview();
 function preview(){prev.innerHTML=renderReportHtml()}
 function downloadPDF(){
- if(typeof window.html2pdf!=="function"){alert("No se cargó la biblioteca de PDF. Comprueba tu conexión e inténtalo nuevamente.");return}
- const pdfBtn=Array.from(document.querySelectorAll("#stage button")).find(b=>b.textContent==="Descargar PDF");
+ if(typeof window.html2pdf!=="function"){alert("La biblioteca PDF no está disponible. Comprueba tu conexión.");return}
+ const btnPDF=Array.from(document.querySelectorAll("#stage button")).find(b=>b.textContent==="Descargar PDF");
  const filename="MAC_Informe_"+String(s.general.code||"investigacion").replace(/[^a-zA-Z0-9_-]/g,"_")+".pdf";
- const treeImage=captureDiagram();
- const holder=document.createElement("div");
- holder.className="mac-pdf-export";
- holder.style.cssText="position:absolute;left:0;top:0;width:703px;background:white;pointer-events:none;z-index:-1";
- holder.innerHTML=renderReportHtml({forPdf:true});
- document.body.appendChild(holder);
- if(pdfBtn){pdfBtn.disabled=true;pdfBtn.textContent="Generando PDF…"}
- const worker=window.html2pdf().set({
-  margin:[14,12,17,12],
-  filename,
-  image:{type:"jpeg",quality:.96},
-  html2canvas:{scale:1.6,useCORS:true,backgroundColor:"#ffffff",logging:false,scrollX:0,scrollY:0,windowWidth:1200},
-  jsPDF:{unit:"mm",format:"a4",orientation:"portrait",compress:true},
-  pagebreak:{mode:["css","legacy"],avoid:[".report-card",".report-field",".report-demo-watermark",".report-cover","tr"]}
- });
- worker.from(holder.firstElementChild).toPdf().get("pdf").then(pdf=>{
-  if(treeImage){
-   pdf.addPage("a4","landscape");
-   const width=pdf.internal.pageSize.getWidth(),height=pdf.internal.pageSize.getHeight();
-   pdf.setFillColor(0,32,91);pdf.rect(0,0,width,31,"F");
-   pdf.setTextColor(255,255,255);pdf.setFont("helvetica","bold");pdf.setFontSize(17);
-   pdf.text("Anexo gráfico · Árbol de causas",14,17);
-   pdf.setFont("helvetica","normal");pdf.setFontSize(9);
-   pdf.text(String(s.general.code||"Investigación"),width-14,17,{align:"right"});
-   const imageProps=pdf.getImageProperties(treeImage);
-   const usableW=width-26,usableH=height-51;
-   const ratio=Math.min(usableW/imageProps.width,usableH/imageProps.height);
-   const drawW=imageProps.width*ratio,drawH=imageProps.height*ratio;
-   pdf.addImage(treeImage,"PNG",(width-drawW)/2,34+(usableH-drawH)/2,drawW,drawH,undefined,"FAST");
+ const dummy=document.createElement("div");dummy.style.cssText="position:absolute;left:0;top:0;width:4px;height:4px;z-index:-1";dummy.textContent=" ";document.body.append(dummy);
+ if(btnPDF){btnPDF.disabled=true;btnPDF.textContent="Generando PDF…"}
+ window.html2pdf().set({margin:0,image:{type:"jpeg",quality:.8},html2canvas:{scale:1},jsPDF:{unit:"mm",format:"a4",orientation:"portrait",compress:true}})
+ .from(dummy).toPdf().get("pdf").then(pdf=>{
+  const html=document.createElement("div");html.innerHTML=renderReportHtml({forPdf:true});
+  const article=html.querySelector(".printreport");
+  const L=15,R=195,B=277,W=R-L;
+  let y=18;
+  const norm=v=>String(v??"").replace(/[\u2013\u2014]/g,"-").replace(/\u2192/g,"->").replace(/[\u2018\u2019]/g,"'").replace(/[\u201c\u201d]/g,'"').replace(/\s+/g," ").replace(/[^\x20-\xFF]/g,"").trim();
+  const value=v=>norm(v)||"No consta";
+  const ink=()=>pdf.setTextColor(30,50,73);
+  const nextPage=()=>{pdf.addPage("a4","portrait");y=18;pdf.setTextColor(0,32,91);pdf.setFont("helvetica","bold");pdf.setFontSize(9);pdf.text("MAC / CONTINUACIÓN DEL INFORME",L,y);y+=10};
+  const need=h=>{if(y+h>B)nextPage()};
+  const wrap=(v,w,size=9.3)=>{pdf.setFont("helvetica","normal");pdf.setFontSize(size);return pdf.splitTextToSize(value(v),w)};
+  const drawText=(v,x=L,w=W,size=9.3,lh=4.7)=>{
+   for(const line of wrap(v,w,size)){need(lh+1);ink();pdf.setFont("helvetica","normal");pdf.setFontSize(size);pdf.text(line,x,y);y+=lh}
+  };
+  const heading=(number,title)=>{
+   need(23);y+=3;pdf.setFillColor(0,123,133);pdf.roundedRect(L,y-4,12,11,2,2,"F");
+   pdf.setTextColor(255,255,255);pdf.setFont("helvetica","bold");pdf.setFontSize(10);pdf.text(number,L+6,y+3.5,{align:"center"});
+   pdf.setTextColor(0,32,91);pdf.setFont("helvetica","bold");pdf.setFontSize(12);
+   const lines=pdf.splitTextToSize(norm(title),W-21);
+   for(const line of lines){pdf.text(line,L+18,y+3);y+=5.5}
+   pdf.setDrawColor(183,216,219);pdf.line(L,y+3,R,y+3);y+=11;
+  };
+  const subtitle=t=>{need(14);y+=4;pdf.setTextColor(0,123,133);pdf.setFont("helvetica","bold");pdf.setFontSize(10.3);pdf.text(norm(t),L,y);y+=9};
+  const paragraph=(label,body)=>{
+   need(11);pdf.setTextColor(0,32,91);pdf.setFont("helvetica","bold");pdf.setFontSize(9.3);pdf.text(norm(label).replace(/:$/,"")+":",L,y);y+=5;
+   drawText(body,L+2,W-4,9.2,4.6);y+=5;
+  };
+  const gridFields=elements=>{
+   const pairs=[...elements],gap=4,colW=(W-gap)/2;
+   for(let i=0;i<pairs.length;i+=2){
+    const row=pairs.slice(i,i+2).map(el=>({label:el.querySelector(".report-field-label")?.textContent||"",val:el.querySelector(".report-field-value")?.textContent||""}));
+    const specs=row.map(z=>({...z,lines:wrap(z.val,colW-8,8.9)}));
+    const h=Math.max(15,...specs.map(z=>9+z.lines.length*4.5));need(h+2);
+    specs.forEach((z,k)=>{
+     const x=L+k*(colW+gap);pdf.setFillColor(241,248,249);pdf.rect(x,y,colW,h,"F");
+     pdf.setFillColor(0,123,133);pdf.rect(x,y,1.4,h,"F");
+     pdf.setTextColor(80,105,119);pdf.setFont("helvetica","bold");pdf.setFontSize(7.2);pdf.text(norm(z.label).toUpperCase(),x+4,y+4.4);
+     ink();pdf.setFont("helvetica","normal");pdf.setFontSize(8.9);z.lines.forEach((line,j)=>pdf.text(line,x+4,y+9.5+j*4.5));
+    });
+    y+=h+2.5;
+   }
+   y+=3;
+  };
+  const record=el=>{
+   const title=el.querySelector(".report-card-heading strong")?.textContent||"Registro";
+   const fields=[...el.querySelectorAll(".report-field")];
+   const paras=[...el.querySelectorAll(".report-paragraph")];
+   const titleLines=wrap(title,W-10,10);
+   let est=9+titleLines.length*5.2;
+   fields.forEach(f=>est+=7+wrap(f.querySelector(".report-field-value")?.textContent,W-7,9.1).length*4.4);
+   paras.forEach(p=>est+=10+wrap(p.textContent,W-7,9.1).length*4.4);
+   if(est<240)need(est+1);else need(20);
+   pdf.setFillColor(231,245,246);pdf.roundedRect(L,y-4,W,5+titleLines.length*5,1.2,1.2,"F");
+   pdf.setFillColor(0,123,133);pdf.rect(L,y-4,1.8,5+titleLines.length*5,"F");
+   pdf.setTextColor(0,32,91);pdf.setFont("helvetica","bold");pdf.setFontSize(10);
+   titleLines.forEach(line=>{need(6);pdf.text(line,L+4,y);y+=5});y+=5;
+   for(const f of fields){const label=f.querySelector(".report-field-label")?.textContent||"Dato";const val=f.querySelector(".report-field-value")?.textContent||"";paragraph(label,val)}
+   for(const p of paras){const label=p.querySelector("strong")?.textContent||"Detalle";paragraph(label,p.textContent.slice(label.length))}
+   pdf.setDrawColor(211,226,231);pdf.line(L,y,R,y);y+=6;
+  };
+  function visit(el){
+   if(!el||el.nodeType!==1)return;
+   if(el.matches(".report-card")){record(el);return}
+   if(el.matches(".report-fields")){gridFields(el.querySelectorAll(".report-field"));return}
+   if(el.matches("h3")){subtitle(el.textContent);return}
+   if(el.matches(".report-paragraph")){const k=el.querySelector("strong")?.textContent||"Detalle";paragraph(k,el.textContent.slice(k.length));return}
+   if(el.matches(".report-tree-note")){paragraph("Árbol de causas",el.textContent);return}
+   if(el.matches(".report-caption")){drawText(el.textContent,L,W,8.3,4.2);y+=6;return}
+   if(el.matches("li")){paragraph("Punto de revisión",el.textContent);return}
+   if(el.matches("p")){drawText(el.textContent);y+=5;return}
+   if(el.matches(".report-field,.report-card-heading"))return;
+   for(const child of el.children)visit(child);
   }
-  const count=pdf.getNumberOfPages();
-  for(let i=1;i<=count;i++){
-   pdf.setPage(i);
+  // Portada vectorial, sin imágenes de páginas ni desplazamientos horizontales.
+  pdf.setFillColor(0,32,91);pdf.rect(0,0,210,30,"F");
+  pdf.setTextColor(255,255,255);pdf.setFont("helvetica","bold");pdf.setFontSize(14);pdf.text("ACADEMIA MOVIDA DE SST",L,17);
+  pdf.setFontSize(8);pdf.text("MAC / ÁRBOL DE CAUSAS",R,17,{align:"right"});
+  y=45;pdf.setTextColor(0,123,133);pdf.setFont("helvetica","bold");pdf.setFontSize(9);pdf.text("INFORME TÉCNICO DE INVESTIGACIÓN",L,y);
+  y+=12;pdf.setTextColor(0,32,91);pdf.setFont("helvetica","bold");pdf.setFontSize(22);pdf.text("Accidente de trabajo",L,y);y+=10;
+  drawText("Método del Árbol de Causas. Evidencias, causalidad, barreras y prevención",L,W,10,5);y+=6;
+  const coverFields=article.querySelectorAll(".report-cover .report-field");gridFields(coverFields);
+  if(s.isDemo){need(25);pdf.setFillColor(255,247,224);pdf.roundedRect(L,y,W,20,2,2,"F");pdf.setTextColor(83,64,22);pdf.setFont("helvetica","bold");pdf.setFontSize(10);pdf.text("CASO FICTICIO / DEMOSTRACIÓN ACADÉMICA",L+4,y+7);pdf.setFont("helvetica","normal");pdf.setFontSize(8.5);pdf.text("Material didáctico sin validez oficial ni correspondencia con un accidente real.",L+4,y+14);y+=27}
+  for(const section of article.querySelectorAll(":scope > .report-section")){
+   heading(section.querySelector(".report-section-number")?.textContent||"",section.querySelector("h2")?.textContent.replace(/^\s*\d{2}\s*/,"")||"Sección");
+   for(const child of section.children){if(child.tagName==="H2")continue;visit(child)}
+  }
+  const tree=captureDiagram();
+  if(tree){
+   pdf.addPage("a4","landscape");
    const pw=pdf.internal.pageSize.getWidth(),ph=pdf.internal.pageSize.getHeight();
-   pdf.setFont("helvetica","normal");pdf.setFontSize(8);pdf.setTextColor(93,112,127);
-   pdf.text("MAC · Academia Movida de SST · "+(s.isDemo?"CASO FICTICIO · ":"")+String(s.general.code||"Sin código"),12,ph-8);
-   pdf.text(i+" / "+count,pw-12,ph-8,{align:"right"});
+   pdf.setFillColor(0,32,91);pdf.rect(0,0,pw,30,"F");pdf.setTextColor(255,255,255);
+   pdf.setFont("helvetica","bold");pdf.setFontSize(17);pdf.text("ANEXO GRÁFICO / ÁRBOL DE CAUSAS",14,17);
+   pdf.setFont("helvetica","normal");pdf.setFontSize(9);pdf.text(value(s.general.code||"Investigación"),pw-14,17,{align:"right"});
+   const props=pdf.getImageProperties(tree),scale=Math.min((pw-26)/props.width,(ph-47)/props.height);
+   const iw=props.width*scale,ih=props.height*scale;
+   pdf.addImage(tree,"PNG",(pw-iw)/2,33+(ph-47-ih)/2,iw,ih,undefined,"FAST");
+  }
+  const n=pdf.getNumberOfPages();
+  for(let i=1;i<=n;i++){pdf.setPage(i);const pw=pdf.internal.pageSize.getWidth(),ph=pdf.internal.pageSize.getHeight();
+   pdf.setTextColor(96,114,127);pdf.setFont("helvetica","normal");pdf.setFontSize(8);
+   pdf.text("MAC · Academia Movida de SST · "+(s.isDemo?"CASO FICTICIO · ":"")+value(s.general.code||"Sin código"),12,ph-8);
+   pdf.text(i+" / "+n,pw-12,ph-8,{align:"right"});
   }
   pdf.save(filename);
- }).catch(err=>{console.error("Error generando informe PDF",err);alert("No se pudo generar el PDF. Revisa que el navegador tenga memoria disponible e inténtalo otra vez.");})
- .finally(()=>{holder.remove();if(pdfBtn){pdfBtn.disabled=false;pdfBtn.textContent="Descargar PDF"}});
+ }).catch(e=>{console.error("Error generando PDF",e);alert("No se pudo generar el PDF; vuelve a intentarlo.");})
+ .finally(()=>{dummy.remove();if(btnPDF){btnPDF.disabled=false;btnPDF.textContent="Descargar PDF"}});
 }
 }
 function demo(){
