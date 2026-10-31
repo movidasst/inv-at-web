@@ -1,7 +1,7 @@
 
 (function(){
 "use strict";
-const STORAGE="mac-ve-v2",STEPS=["Inicio","Identificación","Actuación legal","Evidencias y cronología","Hechos verificados","Árbol de causas","Análisis causal","Medidas y seguimiento","Informe técnico"];
+let STORAGE=null,STEPS=["Inicio","Identificación","Actuación legal","Evidencias y cronología","Hechos verificados","Árbol de causas","Análisis causal","Medidas y seguimiento","Informe técnico"];
 const refs={
 ley:"LOPCYMAT (2005), arts. 40.14, 69, 73–76",
 reg:"Reglamento Parcial de la LOPCYMAT (2007), arts. 83–85",
@@ -29,7 +29,7 @@ for(const el of oldNodes.filter(x=>x.group==="nodes")){const i=Number(el.data?.o
 for(const el of oldNodes.filter(x=>x.group==="edges")){const a=nodeIDs[el.data?.source],b=nodeIDs[el.data?.target];if(a&&b&&a!==b)d.diagram.cytoscape.push({group:"edges",data:{id:ident(),source:a,target:b}})}
 return d
 }
-function load(){try{const v=localStorage.getItem(STORAGE)||localStorage.getItem("mac-investigation");if(v)s=migrate(JSON.parse(v))}catch(e){s=initial()}}
+function load(){try{const v=STORAGE&&localStorage.getItem(STORAGE);if(v)s=migrate(JSON.parse(v))}catch(e){s=initial()}}
 function pTitle(root,title,desc){root.append(E("h2","",title));root.append(E("p","lead",desc))}
 function group(root,title){const d=E("section","group");d.append(E("h3","",title));root.append(d);return d}
 function note(root,text,kind){root.append(E("div","note"+(kind?" "+kind:""),text))}
@@ -283,5 +283,19 @@ $("back").onclick=()=>goto(step-1);
 $("next").onclick=()=>goto(step+1);
 }
 
-load();bindHeader();render();save();
+// Iniciar únicamente después de la validación de credenciales del registro de integrantes.
+let appInitialized = false;
+window.MACApp = {
+  start({scope} = {}) {
+    if(appInitialized) return;
+    if(typeof scope !== "string" || !/^[a-f0-9]{64}$/.test(scope)) return;
+    STORAGE = "mac-ve-v2-member-" + scope;
+    s = initial();
+    load();
+    bindHeader();
+    render();
+    save();
+    appInitialized = true;
+  }
+};
 })();
