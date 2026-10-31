@@ -8,7 +8,7 @@ on:
       - 'index.html'
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -62,3 +62,15 @@ jobs:
           name: MAC-demo-informe-PDF
           path: /tmp/mac-demo-report.pdf
           retention-days: 7
+      - name: Publicar muestras visuales del PDF demostrado
+        shell: bash
+        run: |
+          pages=$(pdfinfo /tmp/mac-demo-report.pdf | awk '/^Pages:/{print $2}')
+          pdftoppm -f 1 -l 1 -scale-to 1100 -png -singlefile /tmp/mac-demo-report.pdf assets/mac-demo-informe-portada.png
+          pdftoppm -f 8 -l 8 -scale-to 1100 -png -singlefile /tmp/mac-demo-report.pdf assets/mac-demo-informe-interior.png
+          pdftoppm -f "$pages" -l "$pages" -scale-to 1600 -png -singlefile /tmp/mac-demo-report.pdf assets/mac-demo-arbol-causas.png
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/mac-demo-informe-portada.png assets/mac-demo-informe-interior.png assets/mac-demo-arbol-causas.png
+          git commit -m "Actualizar muestras visuales del PDF demo de MAC" || exit 0
+          git push
