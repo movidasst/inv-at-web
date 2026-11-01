@@ -28,6 +28,7 @@ test('LTI signed launch creates scoped session, saves revisions and submits immu
  const draft=await(await f.call(s,'/draft')).json();assert.equal(draft.revision,0);
  assert.equal((await f.call(s,'/draft','PUT',{revision:0,document:f.blankDocument(),role:'teacher'})).status,422);
  const document=complete(f.blankDocument),saved=await(await f.call(s,'/draft','PUT',{revision:0,document})).json();assert.equal(saved.revision,1);
+ assert.equal((await f.call(s,'/draft','PUT',{revision:1,document:'x'.repeat(1048576)})).status,413);
  assert.equal((await f.call(s,'/draft','PUT',{revision:0,document})).status,409);
  const submitted=await(await f.call(s,'/submit','POST',{revision:1})).json(),again=await(await f.call(s,'/submit','POST',{revision:1})).json();assert.ok(submitted.id);assert.equal(submitted.id,again.id);
  document.summary='Nueva versión ficticia';assert.equal((await f.call(s,'/draft','PUT',{revision:1,document})).status,200);

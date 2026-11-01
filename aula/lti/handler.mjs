@@ -5,7 +5,7 @@ import {registrationData} from './config.mjs';
 const secret=()=>randomBytes(32).toString('hex');
 const opaque=v=>typeof v==='string'&&/^[a-f0-9]{64}$/.test(v);
 function cookie(request,name){const values=(request.headers.get('cookie')||'').split(';').map(p=>p.trim()).filter(p=>p.startsWith(`${name}=`));return values.length===1?values[0].slice(name.length+1):null}
-async function read(request,limit=65536){const reader=request.body?.getReader();ensure(reader,'Cuerpo requerido',400);let size=0,parts=[];try{while(true){const {done,value}=await reader.read();if(done)break;size+=value.length;ensure(size<=limit,'Solicitud excede límite',413);parts.push(...value)}}finally{await reader.cancel().catch(()=>{})}return new TextDecoder().decode(new Uint8Array(parts))}
+async function read(request,limit=65536){const reader=request.body?.getReader();ensure(reader,'Cuerpo requerido',400);let size=0,parts=[];try{while(true){const {done,value}=await reader.read();if(done)break;size+=value.length;ensure(size<=limit,'Solicitud excede límite',413);parts.push(value)}}finally{await reader.cancel().catch(()=>{})}const bytes=new Uint8Array(size);let offset=0;for(const part of parts){bytes.set(part,offset);offset+=part.length}return new TextDecoder().decode(bytes)}
 export function createAcademicHandler({config:c,repository,evaluationRepository,evaluateHandler,verifyLaunch,caseData,enabled=false,publicJwks={keys:[]}}){
  ensure(Array.isArray(publicJwks.keys)&&publicJwks.keys.every(k=>k.kty==='RSA'&&k.n&&k.e&&!['d','p','q','dp','dq','qi','oth','k'].some(field=>Object.hasOwn(k,field))),'JWKS debe ser exclusivamente público');
  const base=new URL(c.toolBaseUrl),sessionName='__Host-mac-aula',csrfName='__Host-mac-aula-csrf';
@@ -58,6 +58,6 @@ export function createAcademicHandler({config:c,repository,evaluationRepository,
    if(route==='/draft'&&request.method==='PUT'){shape(body,['revision','document']);return reply(200,await repository.save(actor,body.revision,body.document))}
    if(route==='/submit'&&request.method==='POST'){shape(body,['revision']);ensure(Number.isSafeInteger(body.revision)&&body.revision>0,'Revisión inválida',422);return reply(201,await repository.submit(actor,body.revision))}
    return reply(404,{error:{code:'not_found'}});
-  }catch(error){const status=[400,401,403,404,405,409,413,415,422,429,503].includes(error.status)?error.status:401;return reply(status,{error:{code:status===503?'not_enabled_or_unavailable':'academic_request_rejected',message:'No se pudo completar la operación académica. No se ha publicado ninguna calificación.'}})}
+  }catch(error){const status=[400,401,403,404,405,409,413,415,422,429,503].includes(error.status)?error.status:/^ERR_J(WT|WS|OSE|WKS)_/.test(error.code||'')?401:503;return reply(status,{error:{code:status===503?'not_enabled_or_unavailable':'academic_request_rejected',message:'No se pudo completar la operación académica. No se ha publicado ninguna calificación.'}})}
  };
 }
