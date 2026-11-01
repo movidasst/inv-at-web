@@ -1,11 +1,16 @@
-name: Comprobar informe PDF MAC
+name: Comprobar integridad y reportes MAC
 on:
   push:
     paths:
       - '.github/workflows/test-mac-report.yml'
       - 'v2.js'
+      - 'auth.js'
       - 'v2.css'
       - 'index.html'
+      - 'v2.html'
+      - 'tests/**'
+      - 'server/**'
+  pull_request:
   workflow_dispatch:
 permissions:
   contents: read
@@ -17,60 +22,20 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Instalar navegador de prueba
+      - name: Regresiones de integridad y cifrado
+        run: node --test tests/regression.test.cjs
+      - name: Instalar herramientas de navegador y PDF
         run: |
-          npm install --no-save playwright
-          npx playwright install chromium
-      - name: Instalar herramientas de validación PDF
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils
-      - name: Ejecutar prueba del demo e inspeccionar PDF
-        shell: bash
-        run: |
-          python3 -m http.server 8765 >/tmp/mac-server.log 2>&1 &
-          node - <<'NODE'
-            const {chromium}=require('playwright');
-            (async()=>{
-            const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
-            const page=await browser.newPage({acceptDownloads:true,viewport:{width:1366,height:900}});
-            page.on('pageerror',e=>console.log('PAGE_ERROR',e.stack));
-            page.on('console',m=>{if(m.type()==='error')console.log('CONSOLE_ERROR',m.text())});
-            await page.goto('http://127.0.0.1:8765/',{waitUntil:'domcontentloaded'});
-            await page.addStyleTag({content:'.login-gate{display:none!important}body.auth-locked{overflow:auto!important}#appShell{display:block!important}'});
-            await page.evaluate(()=>{const sh=document.getElementById('appShell');sh.hidden=false;sh.setAttribute('aria-hidden','false');document.body.classList.remove('auth-locked');window.MACApp.start({scope:'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'});});
-            await page.waitForSelector('#reportPreview .printreport',{timeout:20000});
-            const report=await page.evaluate(()=>({text:document.querySelector('#reportPreview').textContent.slice(0,650),img:[...document.querySelectorAll('#reportPreview .report-diagram img')].map(x=>({complete:x.complete,width:x.naturalWidth,height:x.naturalHeight,renderedWidth:x.getBoundingClientRect().width})),cards:document.querySelectorAll('#reportPreview .report-card').length}));
-            console.log('REPORT',JSON.stringify(report));
-            if(!report.img.length||!report.img[0].complete||report.img[0].width<900)throw Error('TREE_IMAGE_MISSING');
-            if(report.cards<25)throw Error('REPORT_INCOMPLETE');
-            const promise=page.waitForEvent('download',{timeout:80000});
-            await page.getByRole('button',{name:'Descargar PDF'}).click();
-            const file=await promise;
-            await file.saveAs('/tmp/mac-demo-report.pdf');
-            console.log('PDF_SAVED',file.suggestedFilename());
-            await browser.close();
-            })().catch(e=>{console.error('TEST_FAILED',e.stack);process.exit(1)});
-            
-          NODE
-          pdfinfo /tmp/mac-demo-report.pdf | grep -E 'Pages:|Page size:|File size:'
-          echo 'PDF_IMAGE_LIST'
-          pdfimages -list /tmp/mac-demo-report.pdf | tail -12
-          pages=$(pdfinfo /tmp/mac-demo-report.pdf | awk '/^Pages:/{print $2}')
-          pdfinfo -f "$pages" -l "$pages" /tmp/mac-demo-report.pdf | grep -E '^Page *[0-9]+ size:'
-      - name: Guardar PDF demo como evidencia de prueba
+          npm install --no-save playwright@1.62.1 pdfjs-dist@5.6.205 @napi-rs/canvas@0.1.100
+          npx playwright install --with-deps chromium
+      - name: Verificar sesión, Excel y PDF en navegador
+        run: node tests/browser.cjs
+      - name: Comprobar límites de texto PDF y renderizar evidencia
+        run: node tests/pdf.cjs
+      - name: Conservar evidencia
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: MAC-demo-informe-PDF
-          path: /tmp/mac-demo-report.pdf
+          name: MAC-regresiones-reportes
+          path: test-artifacts/
           retention-days: 7
-      - name: Validar imágenes renderizadas sin recortes
-        shell: bash
-        run: |
-          pages=$(pdfinfo /tmp/mac-demo-report.pdf | awk '/^Pages:/{print $2}')
-          pdftoppm -f 1 -l 1 -scale-to 1100 -png -singlefile /tmp/mac-demo-report.pdf /tmp/mac-cover.png
-          pdftoppm -f 8 -l 8 -scale-to 1100 -png -singlefile /tmp/mac-demo-report.pdf /tmp/mac-interior.png
-          pdftoppm -f "$pages" -l "$pages" -scale-to 1600 -png -singlefile /tmp/mac-demo-report.pdf /tmp/mac-tree.png
-          find /tmp -maxdepth 1 -name 'mac-*.png*' -type f -size +1k -print
-          pdftotext /tmp/mac-demo-report.pdf /tmp/mac-demo-report.txt
-          grep -q 'Accidente de trabajo' /tmp/mac-demo-report.txt
-          grep -q 'Hechos' /tmp/mac-demo-report.txt
-          echo "PDF con contenido legible, página gráfica y renderizado verificados."
