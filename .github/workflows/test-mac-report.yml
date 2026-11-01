@@ -23,7 +23,7 @@ jobs:
         with:
           node-version: '22'
       - name: Regresiones de integridad y cifrado
-        run: node --test tests/regression.test.cjs
+        run: node --test tests/*.test.cjs
       - name: Instalar herramientas de navegador y PDF
         run: |
           npm install --no-save playwright@1.62.1 pdfjs-dist@5.6.205 @napi-rs/canvas@0.1.100
