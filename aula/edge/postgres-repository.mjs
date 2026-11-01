@@ -26,6 +26,7 @@ export function createPostgresRepository(sql,{dailyLimit=10,dailyCalls=200,daily
    ensure(job&&(!retry||retry.evaluationId===job.id),'Evaluación o versión no disponible',409);
    if(retry&&(await tx`select id from mac_aula.evaluation_attempts where evaluation_id=${job.id} and retry_key=${retry.key}`).length)return {acquired:false,job:jobView(job)};
    if(job.state==='running'&&new Date(job.lease_until).getTime()<=Date.now()){
+    await tx`delete from mac_aula.evaluation_slots where lease_id=${job.lease_id}`;
     await tx`update mac_aula.evaluation_attempts set finished_at=now(),outcome='pending_correction',error_code='worker_interrupted' where evaluation_id=${job.id} and lease_id=${job.lease_id} and finished_at is null`;
     await tx`update mac_aula.evaluations set state='pending_correction',error_code='worker_interrupted',next_retry_at=now()+interval '1 minute',updated_at=now() where id=${job.id}`;
     return {acquired:false,job:jobView({...job,state:'pending_correction'})};
@@ -35,21 +36,25 @@ export function createPostgresRepository(sql,{dailyLimit=10,dailyCalls=200,daily
     ensure(job.state==='pending_correction'&&retryable.has(job.error_code)&&job.runs<maxRuns,'Pendiente requiere revisión o configuración; no admite reintento',409);
     ensure(new Date(job.next_retry_at).getTime()<=Date.now(),'Reintento aún no permitido',429);
    }
-   const [capacity]=await tx`select count(*)::int as active from mac_aula.evaluations where state='running' and lease_until>now()`;
+   // Slots have backend-only global visibility; evaluations remain scoped by RLS.
+   await tx`delete from mac_aula.evaluation_slots where expires_at<=now()`;
+   const [capacity]=await tx`select count(*)::int as active from mac_aula.evaluation_slots`;
    ensure(capacity.active<maxConcurrent,'Capacidad ocupada; reintentar más tarde',429);
    // Reserve a whole evaluation (<=4 model attempts) across all worker instances.
    await tx`insert into mac_aula.evaluation_daily_budget(day,used) values((now() at time zone 'UTC')::date,0) on conflict do nothing`;
    const budget=await tx`update mac_aula.evaluation_daily_budget set used=used+1,reserved_calls=reserved_calls+4,reserved_tokens=reserved_tokens+80000 where day=(now() at time zone 'UTC')::date and used<${dailyLimit} and reserved_calls+4<=${dailyCalls} and reserved_tokens+80000<=${dailyTokens} returning used`;
    if(!budget.length){await tx`update mac_aula.evaluations set state='pending_correction',error_code='daily_limit',next_retry_at=((now() at time zone 'UTC')::date+1) at time zone 'UTC',updated_at=now() where id=${job.id}`;await tx`insert into mac_aula.evaluation_attempts(id,evaluation_id,lease_id,actor_id,request_id,finished_at,outcome,error_code,retry_key) values(${randomUUID()},${job.id},${randomUUID()},${actor.id},${requestId},now(),'pending_correction','daily_limit',${retry?.key||null})`;return {acquired:false,job:jobView({...job,state:'pending_correction'})}}
    const leaseId=randomUUID();await tx`update mac_aula.evaluations set state='running',runs=runs+1,lease_id=${leaseId},lease_until=now()+interval '4 minutes',updated_at=now() where id=${job.id}`;
+   await tx`insert into mac_aula.evaluation_slots values(${leaseId},now()+interval '4 minutes')`;
    await tx`insert into mac_aula.evaluation_attempts(id,evaluation_id,lease_id,actor_id,request_id,outcome,retry_key) values(${randomUUID()},${job.id},${leaseId},${actor.id},${requestId},'started',${retry?.key||null})`;
    return {acquired:true,leaseId,job:jobView({...job,state:'running'})};
   })},
   finish(actor,{jobId,leaseId,state,record,errorCode}){return scoped(actor,async tx=>{
    ensure(['proposed','pending_correction'].includes(state),'Estado inválido');
-   const rows=await tx`update mac_aula.evaluations set state=${state},result=${tx.json(record)},error_code=${errorCode},next_retry_at=case when ${errorCode}='quota_exhausted' then ((now() at time zone 'UTC')::date+1) at time zone 'UTC' else now()+interval '5 minutes' end,updated_at=now() where id=${jobId} and state='running' and lease_id=${leaseId} returning *`;
+   const rows=await tx`update mac_aula.evaluations set state=${state},result=${tx.json(record)},error_code=${errorCode},next_retry_at=case when ${errorCode}='quota_exhausted' then ((now() at time zone 'UTC')::date+1) at time zone 'UTC' else now()+interval '5 minutes' end,updated_at=now() where id=${jobId} and state='running' and lease_id=${leaseId} and lease_until>now() returning *`;
    ensure(rows.length===1,'La evaluación cambió de estado',409);
    await tx`update mac_aula.evaluation_attempts set finished_at=now(),outcome=${state},error_code=${errorCode},result=${tx.json(record)} where evaluation_id=${jobId} and lease_id=${leaseId} and finished_at is null`;
+   await tx`delete from mac_aula.evaluation_slots where lease_id=${leaseId}`;
    return jobView(rows[0]);
   })},
   history(actor,submissionId){return scoped(actor,async tx=>{

@@ -42,6 +42,7 @@ create table mac_aula.evaluation_reviews(
 create table mac_aula.evaluation_daily_budget(day date primary key,used integer not null check(used>=0),reserved_calls integer not null default 0,reserved_tokens integer not null default 0);
 create table mac_aula.evaluation_capacity(id integer primary key check(id=1));
 insert into mac_aula.evaluation_capacity values(1);
+create table mac_aula.evaluation_slots(lease_id uuid primary key,expires_at timestamptz not null);
 
 -- No service-role bypass, public RPC, SECURITY DEFINER, or grants to browser roles.
 alter table mac_aula.sessions enable row level security;
@@ -51,12 +52,15 @@ alter table mac_aula.evaluation_attempts enable row level security;
 alter table mac_aula.evaluation_reviews enable row level security;
 alter table mac_aula.evaluation_daily_budget enable row level security;
 alter table mac_aula.evaluation_capacity enable row level security;
+alter table mac_aula.evaluation_slots enable row level security;
 revoke all on all tables in schema mac_aula from public,anon,authenticated;
 grant select on mac_aula.sessions,mac_aula.submissions to mac_aula_worker;
 grant select,insert,update on mac_aula.evaluations,mac_aula.evaluation_attempts,mac_aula.evaluation_daily_budget to mac_aula_worker;
 grant select,insert on mac_aula.evaluation_reviews to mac_aula_worker;
 grant select,update on mac_aula.evaluation_capacity to mac_aula_worker;
 create policy worker_capacity on mac_aula.evaluation_capacity to mac_aula_worker using(true) with check(true);
+grant select,insert,delete on mac_aula.evaluation_slots to mac_aula_worker;
+create policy worker_slots on mac_aula.evaluation_slots to mac_aula_worker using(true) with check(true);
 create policy worker_session_lookup on mac_aula.sessions for select to mac_aula_worker using(true);
 create policy scope_submission on mac_aula.submissions for select to mac_aula_worker using(
  platform_id=current_setting('mac_aula.platform',true) and deployment_id=current_setting('mac_aula.deployment',true)

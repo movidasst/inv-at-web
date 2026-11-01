@@ -91,6 +91,8 @@ test('Edge retry ceiling, nontransient failures, global capacity and durable tok
  const f=await fixture(t,{dailyTokens:80000,dailyCalls:4}),actor=await f.repository.authenticate(hash('c'.repeat(64))),s=await f.repository.submission(actor,f.id);
  const args={submissionId:f.id,snapshotHash:s.snapshotHash,evaluatorVersion:'capacity',providerIdentity:'fixed',requestId:randomUUID()};
  const first=await f.repository.claim(actor,args);assert.equal(first.acquired,true);
+ const otherId=randomUUID();await f.db.exec('reset role;');await f.db.query('insert into mac_aula.submissions(id,owner_id,platform_id,deployment_id,course_id,activity_id,case_id,case_version,rubric_version,revision,fictitious,snapshot_hash,document) select $1,$2,platform_id,deployment_id,course_id,activity_id,case_id,case_version,rubric_version,revision,fictitious,snapshot_hash,document from mac_aula.submissions where id=$3',[otherId,f.b,f.id]);await f.db.exec('set role mac_aula_worker;');
+ const other=await f.repository.authenticate(hash('b'.repeat(64)));await assert.rejects(f.repository.claim(other,{...args,submissionId:otherId}),e=>e.status===429,'Capacity must include jobs hidden by other students RLS');
  await assert.rejects(f.repository.claim(actor,{...args,evaluatorVersion:'second'}),e=>e.status===429);
  await f.repository.finish(actor,{jobId:first.job.id,leaseId:first.leaseId,state:'pending_correction',record:null,errorCode:'network_failure'});
  await f.db.exec('reset role;');await f.db.query("update mac_aula.evaluations set next_retry_at=now()-interval '1 minute' where id=$1",[first.job.id]);await f.db.exec('set role mac_aula_worker;');
