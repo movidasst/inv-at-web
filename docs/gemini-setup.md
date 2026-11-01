@@ -43,12 +43,8 @@ El servidor carga esas variables una sola vez y las mantiene fuera de sus respue
 
 `GEMINI_MODEL_VERSION` es el valor exacto esperado del campo modelVersion de una respuesta Google, no necesariamente el campo version numérico del catálogo. Si Google devuelve una revisión distinta, no cambiar esa variable a ciegas: comprobar compatibilidad con una prueba ficticia, registrar versión, comparar resultados y recalibrar. El identificador del proveedor incluye modelo/revisión; no se reutilizan evaluaciones de otro proveedor/modelo. El motor pasa a versión 1.1.0; las calibraciones anteriores no habilitan automáticamente el nuevo evaluador. Ningún alias puede garantizar pesos inmutables si el proveedor cambia internamente sin informarlo: mantener auditoría y control de deriva.
 
-## Si se migra a Supabase académico
-**Actualmente no existe una Edge Function Gemini desplegada.** No basta con guardar una clave en Supabase para que el servidor Node local pueda leerla.
-
-En el **proyecto académico de staging**, abrir Supabase Dashboard → Edge Functions → Secrets. Crear secreto con nombre exacto `GEMINI_API_KEY` y pegar el valor únicamente en el campo Value de ese panel. Configurar allí las otras variables del evaluador cuando exista la función. El runtime Edge lee con `Deno.env.get('GEMINI_API_KEY')`; una futura función deberá pasar explícitamente esas variables a la configuración y reutilizar el adaptador tras probar compatibilidad Deno. El servidor local `aula/dev/server.mjs` no se despliega como Edge Function.
-
-No guardar la clave en tablas públicas, parámetros LTI, configuración del navegador ni en el proyecto profesional. No se modifica ningún secreto ni recurso remoto en esta tarea. Antes de crear/desplegar una función, autorizar ese incremento y comprobar permisos, RLS y sesiones académicas.
+## Candidato Supabase Edge
+Existe ahora una función candidata que reutiliza este motor, sin desplegar ni modificar producción. Lee GEMINI_API_KEY desde Supabase Secrets. La clave ya almacenada no debe copiarse a GitHub ni al chat. El Node local no puede leer esos Secrets. Configuración, auditoría, controles y requisitos pendientes de Moodle en [edge-evaluation-review.md](edge-evaluation-review.md). No habilitar la función antes de disponer de identidad LTI validada y staging autorizado.
 
 ## Cuota, coste y privacidad
 La aplicación no administra ni activa facturación Google. **La API de generación no ofrece aquí un interruptor que garantice “solo gratis” para una clave de un proyecto ya facturado.** GEMINI_FREE_TIER_CONFIRMED es una confirmación administrativa, no una verificación remota de billing. Utilizar un proyecto sin facturación de pago; si hay duda, dejar GEMINI_ENABLED=0. No se cambian settings de Google ni se contratan servicios.

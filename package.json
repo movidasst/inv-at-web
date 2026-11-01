@@ -1,0 +1,12 @@
+{
+  "name": "mac-aula-development-checks",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "test": "node --test tests/*.test.cjs",
+    "test:edge-database": "node --test tests/edge-database.test.cjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.14"
+  }
+}

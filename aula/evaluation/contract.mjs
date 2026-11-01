@@ -1,4 +1,5 @@
 import {ensure,shape,text} from '../shared/models.mjs';
+import {Buffer} from 'node:buffer';
 import {EVALUATION_RUBRIC,LEVELS,RUBRIC_VERSION} from '../shared/evaluation-rubric.mjs';
 export const CONTRACT_VERSION='1.0.0';
 export const EVALUATOR_VERSION='competency-pilot-1.1.0';

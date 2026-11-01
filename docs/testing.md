@@ -49,3 +49,6 @@ El recorrido de navegador añade orientación formativa, bandeja por excepciones
 | Caso piloto | SST revisa fuentes/coherencia y alternativas; docente verifica carga, rúbrica y feedback; alumno no recibe solucionario. |
 
 Pruebas de backend local/staging con datos ficticios, plataforma simulada y claves efímeras; nunca insertar claves de producción como fixtures. Comparar exportaciones antes/después de cada extracción de v2.js, conservando mismo expediente de prueba.
+
+## Candidato Edge 2026-11-01
+Resultados y límites: [edge-evaluation-review.md](edge-evaluation-review.md). 59 pruebas Node aprobadas y una real omitida; dos Deno aprobadas; tipos Edge, navegador Aula/Profesional y PDF 19/23 páginas aprobados. Instalar dependencias con pnpm install --frozen-lockfile. Sin despliegue ni SQL remoto ni llamadas reales Gemini.

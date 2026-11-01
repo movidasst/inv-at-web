@@ -1,5 +1,6 @@
 // Official Gemini Developer API, backend only. No SDK, key in URL or automatic model fallback.
 import {ensure} from '../shared/models.mjs';
+import {Buffer} from 'node:buffer';
 import {EVALUATION_RUBRIC} from '../shared/evaluation-rubric.mjs';
 import {validateModelResult,CONTRACT_VERSION} from './contract.mjs';
 export const DEFAULT_GEMINI_MODEL='gemini-3.8-flash';

@@ -1,0 +1,5 @@
+# Review candidate only. The handler validates opaque academic sessions in the database.
+# A Moodle id_token is NOT a Supabase JWT. Do not deploy before the LTI session issuer exists.
+[functions.mac-aula-evaluate]
+verify_jwt = false
+entrypoint = "./functions/mac-aula-evaluate/index.ts"

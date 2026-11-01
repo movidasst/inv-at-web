@@ -11,6 +11,9 @@ on:
       - 'aula/**'
       - 'tests/**'
       - 'server/**'
+      - 'supabase/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
   pull_request:
   workflow_dispatch:
 permissions:
@@ -23,6 +26,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - name: Instalar PostgreSQL de pruebas desde lockfile
+        run: pnpm install --frozen-lockfile
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.8
+      - name: Verificar runtime Edge sin secretos
+        run: |
+          deno check --node-modules-dir=none --frozen --lock=supabase/deno.lock supabase/functions/mac-aula-evaluate/index.ts
+          deno test --node-modules-dir=none tests/edge-runtime.test.ts
       - name: Regresiones de integridad y cifrado
         run: node --test tests/*.test.cjs
       - name: Instalar herramientas de navegador y PDF
