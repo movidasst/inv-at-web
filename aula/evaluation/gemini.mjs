@@ -40,8 +40,8 @@ export function createGeminiProvider({apiKey,model=DEFAULT_GEMINI_MODEL,expected
  const provider={id:'google-gemini',modelVersion:`${model}:${expectedVersion}`,identity:`google-gemini:${model}:${expectedVersion}:adapter-1`,
   async evaluate(input,{signal,maxOutputTokens=8000,pass=1}={}){
    ensure(Number.isSafeInteger(maxOutputTokens)&&maxOutputTokens>0&&maxOutputTokens<=8000,'Límite de salida Gemini inválido');
+   const day=new Date(clock()).toISOString().slice(0,10);if(day!==lastDay){requests=0;reservedTokens=0;lastDay=day;if(disabled==='quota_exhausted')disabled=null;}
    if(disabled)throw new GeminiError(disabled);
-   const day=new Date(clock()).toISOString().slice(0,10);if(day!==lastDay){requests=0;reservedTokens=0;lastDay=day}
    const payload={systemInstruction:{parts:[{text:input.instructions+'\n'+JSON.stringify({rubric:input.rubric,contractVersion:input.contractVersion,rubricVersion:input.rubricVersion})}]},contents:[{role:'user',parts:[{text:JSON.stringify({untrustedData:input.untrustedData,checks:input.checks,verification:pass})}]}],generationConfig:{candidateCount:1,maxOutputTokens,thinkingConfig:{thinkingLevel:'LOW',includeThoughts:false},responseFormat:{text:{mimeType:'APPLICATION_JSON',schema:geminiOutputSchema()}}}};
    const body=JSON.stringify(payload),size=Buffer.byteLength(body),reservation=size+maxOutputTokens;
    if(size>maxInputBytes)throw new GeminiError('input_limit');

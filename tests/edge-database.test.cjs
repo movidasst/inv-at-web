@@ -70,3 +70,32 @@ test('Edge persistent daily budget and interrupted lease leave work pending with
  const limited=await f.call('a'.repeat(64),{submissionId:f.id});assert.equal(limited.status,202);const limitedBody=await limited.json();assert.equal(limitedBody.error.code,'correction_pending');
  await f.db.exec('reset role;');const attempts=(await f.db.query('select error_code from mac_aula.evaluation_attempts')).rows;assert.ok(attempts.some(a=>a.error_code==='worker_interrupted'));assert.ok(attempts.some(a=>a.error_code==='daily_limit'));
 });
+
+test('Edge controlled teacher retry is delayed, deduplicated, version-bound and preserves all results',async t=>{
+ const {EVALUATION_RUBRIC}=await import('../aula/shared/evaluation-rubric.mjs');let fail=true,calls=0;
+ const result={contractVersion:'1.0.0',rubricVersion:'2.0.0',criteria:EVALUATION_RUBRIC.map(c=>({id:c.id,indicators:c.indicators.map(i=>({id:i.id,level:2,refs:['summary'],reason:'Prueba de recuperación ficticia.'}))})),flags:[]};
+ const provider={id:'retry-test',modelVersion:'fixed-1',evaluate:async()=>{calls++;if(fail)throw Object.assign(Error('network'),{code:'network_failure',transient:true});return {result,usage:{inputTokens:10,outputTokens:100},providerId:'retry-test',modelVersion:'fixed-1'}}};
+ const f=await fixture(t,{evaluationOptions:{provider,privacyApproved:true,identity:'retry-test-fixed-1'}});
+ const first=await(await f.call('a'.repeat(64),{submissionId:f.id})).json();assert.equal(first.status,'pending_correction');
+ const body={action:'retry',submissionId:f.id,evaluationId:first.evaluation.id,retryKey:randomUUID()};
+ assert.equal((await f.call('a'.repeat(64),body)).status,403);assert.equal((await f.call('d'.repeat(64),body)).status,404);assert.equal((await f.call('c'.repeat(64),body)).status,429);
+ await f.db.exec('reset role;');await f.db.query("update mac_aula.evaluations set next_retry_at=now()-interval '1 minute' where id=$1",[body.evaluationId]);await f.db.exec('set role mac_aula_worker;');fail=false;
+ const replies=await Promise.all([f.call('c'.repeat(64),body),f.call('c'.repeat(64),body)]);assert.ok(replies.every(r=>[200,202].includes(r.status)));assert.equal(calls,4,'2 failed transport attempts followed by 2 successful verification passes');
+ assert.equal((await f.call('c'.repeat(64),body)).status,200);assert.equal(calls,4);
+ const history=await(await f.call('c'.repeat(64),{action:'history',submissionId:f.id})).json();const job=history.evaluations[0];assert.equal(job.attempts.length,2);assert.equal(job.runs,2);assert.equal(job.attempts[0].result.proposal,null);assert.equal(job.attempts[1].result.proposal.total,75);assert.equal(job.published,false);
+ const actor=await f.repository.authenticate(hash('c'.repeat(64))),s=await f.repository.submission(actor,f.id);
+ await assert.rejects(f.repository.claim(actor,{submissionId:f.id,snapshotHash:s.snapshotHash,evaluatorVersion:'different-version',providerIdentity:'retry-test-fixed-1',requestId:randomUUID(),retry:{evaluationId:body.evaluationId,key:randomUUID()}}),e=>e.status===409);
+});
+
+test('Edge retry ceiling, nontransient failures, global capacity and durable token reservation fail closed',async t=>{
+ const f=await fixture(t,{dailyTokens:80000,dailyCalls:4}),actor=await f.repository.authenticate(hash('c'.repeat(64))),s=await f.repository.submission(actor,f.id);
+ const args={submissionId:f.id,snapshotHash:s.snapshotHash,evaluatorVersion:'capacity',providerIdentity:'fixed',requestId:randomUUID()};
+ const first=await f.repository.claim(actor,args);assert.equal(first.acquired,true);
+ await assert.rejects(f.repository.claim(actor,{...args,evaluatorVersion:'second'}),e=>e.status===429);
+ await f.repository.finish(actor,{jobId:first.job.id,leaseId:first.leaseId,state:'pending_correction',record:null,errorCode:'network_failure'});
+ await f.db.exec('reset role;');await f.db.query("update mac_aula.evaluations set next_retry_at=now()-interval '1 minute' where id=$1",[first.job.id]);await f.db.exec('set role mac_aula_worker;');
+ const retry={evaluationId:first.job.id,key:randomUUID()};const limited=await f.repository.claim(actor,{...args,retry});assert.equal(limited.acquired,false);assert.equal(limited.job.state,'pending_correction');
+ await f.db.exec('reset role;');const [budget]=(await f.db.query('select * from mac_aula.evaluation_daily_budget')).rows;assert.equal(budget.used,1);assert.equal(budget.reserved_calls,4);assert.equal(budget.reserved_tokens,80000);
+ await f.db.query("update mac_aula.evaluations set error_code='model_unavailable',next_retry_at=now()-interval '1 minute' where id=$1",[first.job.id]);await f.db.exec('set role mac_aula_worker;');await assert.rejects(f.repository.claim(actor,{...args,retry:{...retry,key:randomUUID()}}),e=>e.status===409);
+ await f.db.exec('reset role;');await f.db.query("update mac_aula.evaluations set error_code='network_failure',runs=3 where id=$1",[first.job.id]);await f.db.exec('set role mac_aula_worker;');await assert.rejects(f.repository.claim(actor,{...args,retry:{...retry,key:randomUUID()}}),e=>e.status===409);
+});

@@ -56,7 +56,7 @@ Límites iniciales: 20 intentos de generación/día, 400000 tokens reservados/d�
 Los contadores diarios son por instancia/proceso y se reinician al reiniciar Node; no son un presupuesto financiero distribuido o persistente. Antes de producción se requiere una reserva durable por proyecto/curso, control de concurrencia entre workers y conciliación de cuota. Los límites locales no garantizan ausencia de cargos en un proyecto facturado. No hay tokens en URLs, logs o mensajes de error; solo cabecera x-goog-api-key al host oficial HTTPS, sin redirecciones, herramientas, búsqueda ni ejecución de código.
 
 ## Fallos y continuidad
-Cuota 429, autorización 401/403 o modelo 404 abren circuito hasta reiniciar el backend tras resolver el problema; no se reintentan como si fuesen bajo desempeño. Un cambio de modelVersion también bloquea el adaptador. Conexiones/5xx tienen como máximo los reintentos acotados del motor, sin cambiar modelo. Respuestas bloqueadas, truncadas, sin uso consistente o JSON/refs inválidos no generan una nota. Nunca se asigna cero por el fallo de un servicio.
+Autorización 401/403 o modelo 404 abren circuito hasta reiniciar el backend tras resolver el problema; cuota 429 bloquea hasta el siguiente día UTC; no se reintentan como si fuesen bajo desempeño. Un cambio de modelVersion también bloquea el adaptador. Conexiones/5xx tienen como máximo los reintentos acotados del motor, sin cambiar modelo. Respuestas bloqueadas, truncadas, sin uso consistente o JSON/refs inválidos no generan una nota. Nunca se asigna cero por el fallo de un servicio.
 
 Las reglas determinísticas conservan feedback e integridad. Sin IA disponible, los cinco criterios técnicos necesitan valoración humana porque las reglas no demuestran competencia semántica. Si dos verificaciones válidas dejan solo algunos criterios no valorables, se conservan propuestas parciales y reviewCriteria identifica los pendientes; el total queda null cuando falta algún criterio. La calibración piloto y autorización final siguen siendo requisitos globales, aunque existan propuestas numéricas. La nota definitiva no se envía aún a Moodle.
 
@@ -80,3 +80,6 @@ Requiere clave, confirmación de nivel gratuito y datos ficticios. Consulta mode
 - [Catálogo de la API](https://ai.google.dev/api/models), [generación](https://ai.google.dev/api/generate-content), [salida estructurada](https://ai.google.dev/gemini-api/docs/structured-output).
 - [Precios y condiciones de tratamiento](https://ai.google.dev/gemini-api/docs/pricing), [claves](https://ai.google.dev/gemini-api/docs/api-key).
 - [Secretos de Supabase Edge Functions](https://supabase.com/docs/guides/functions/secrets).
+
+## Actualización del piloto LTI
+Reservas durables, reintentos y staging aislado: [lti-pilot-development.md](lti-pilot-development.md). El secreto de un proyecto profesional no se comparte con staging. Las banderas de habilitación siguen desactivadas. La capacidad de 50 estudiantes no autoriza aumentar cuotas ni activar facturación.

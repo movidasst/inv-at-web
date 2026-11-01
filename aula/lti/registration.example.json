@@ -1,0 +1,9 @@
+{
+  "id": "moodle-academia-staging",
+  "issuer": "https://moodle-staging.example.invalid",
+  "clientId": "REEMPLAZAR_CON_REGISTRO_MOODLE",
+  "authorizationUrl": "https://moodle-staging.example.invalid/ENDPOINT_OIDC_REAL",
+  "jwksUrl": "https://moodle-staging.example.invalid/ENDPOINT_JWKS_REAL",
+  "toolBaseUrl": "https://aula-staging.example.invalid/functions/v1/mac-aula-academic",
+  "activities": [{"deployment":"DEPLOYMENT_REAL","course":"CONTEXT_ID_VALIDADO","resource":"RESOURCE_LINK_ID_VALIDADO","fictitious":true}]
+}

@@ -8,3 +8,4 @@ fix-code.cjs
 # Backend credentials; templates contain no values
 .env*
 !.env.example
+**/tool-private.pem

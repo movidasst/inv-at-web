@@ -3,3 +3,7 @@
 [functions.mac-aula-evaluate]
 verify_jwt = false
 entrypoint = "./functions/mac-aula-evaluate/index.ts"
+
+[functions.mac-aula-academic]
+verify_jwt = false
+entrypoint = "./functions/mac-aula-academic/index.ts"

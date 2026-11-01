@@ -24,13 +24,14 @@ create table mac_aula.evaluations(
  id uuid primary key,submission_id uuid not null references mac_aula.submissions(id),snapshot_hash text not null,
  evaluator_version text not null,provider_identity text not null,
  state text not null check(state in ('queued','running','proposed','pending_correction','reviewed_proposal')),
- lease_id uuid,lease_until timestamptz,result jsonb,created_at timestamptz not null default now(),updated_at timestamptz not null default now(),
+ lease_id uuid,lease_until timestamptz,result jsonb,runs integer not null default 0,next_retry_at timestamptz,error_code text,created_at timestamptz not null default now(),updated_at timestamptz not null default now(),
  unique(submission_id,snapshot_hash,evaluator_version,provider_identity)
 );
 create table mac_aula.evaluation_attempts(
  id uuid primary key,evaluation_id uuid not null references mac_aula.evaluations(id),lease_id uuid not null,
  actor_id uuid not null,request_id uuid not null,started_at timestamptz not null default now(),finished_at timestamptz,
- outcome text not null check(outcome in ('started','proposed','pending_correction')),error_code text,
+ outcome text not null check(outcome in ('started','proposed','pending_correction')),error_code text,result jsonb,retry_key uuid,
+ unique(evaluation_id,retry_key),
  unique(evaluation_id,lease_id)
 );
 create table mac_aula.evaluation_reviews(
@@ -38,7 +39,9 @@ create table mac_aula.evaluation_reviews(
  total numeric not null check(total between 0 and 100),review jsonb not null,reason text not null check(length(reason) between 1 and 2000),review_hash text not null,
  created_at timestamptz not null default now(),unique(evaluation_id,reviewer_id,review_hash)
 );
-create table mac_aula.evaluation_daily_budget(day date primary key,used integer not null check(used>=0));
+create table mac_aula.evaluation_daily_budget(day date primary key,used integer not null check(used>=0),reserved_calls integer not null default 0,reserved_tokens integer not null default 0);
+create table mac_aula.evaluation_capacity(id integer primary key check(id=1));
+insert into mac_aula.evaluation_capacity values(1);
 
 -- No service-role bypass, public RPC, SECURITY DEFINER, or grants to browser roles.
 alter table mac_aula.sessions enable row level security;
@@ -47,10 +50,13 @@ alter table mac_aula.evaluations enable row level security;
 alter table mac_aula.evaluation_attempts enable row level security;
 alter table mac_aula.evaluation_reviews enable row level security;
 alter table mac_aula.evaluation_daily_budget enable row level security;
+alter table mac_aula.evaluation_capacity enable row level security;
 revoke all on all tables in schema mac_aula from public,anon,authenticated;
 grant select on mac_aula.sessions,mac_aula.submissions to mac_aula_worker;
 grant select,insert,update on mac_aula.evaluations,mac_aula.evaluation_attempts,mac_aula.evaluation_daily_budget to mac_aula_worker;
 grant select,insert on mac_aula.evaluation_reviews to mac_aula_worker;
+grant select,update on mac_aula.evaluation_capacity to mac_aula_worker;
+create policy worker_capacity on mac_aula.evaluation_capacity to mac_aula_worker using(true) with check(true);
 create policy worker_session_lookup on mac_aula.sessions for select to mac_aula_worker using(true);
 create policy scope_submission on mac_aula.submissions for select to mac_aula_worker using(
  platform_id=current_setting('mac_aula.platform',true) and deployment_id=current_setting('mac_aula.deployment',true)

@@ -1,3 +1,5 @@
+Estado actualizado: ver [lti-pilot-development.md](lti-pilot-development.md). El diseño siguiente es histórico; ahora existe backend LTI de staging probado localmente, sin despliegue ni conexión real. AGS, envío de notas y registro productivo siguen deshabilitados. No ejecutar los pasos históricos de publicación de calificaciones durante este piloto.
+
 # MAC Aula — arquitectura propuesta (ADR-001)
 
 Estado: diseño aprobado para implementación incremental. No existen endpoints LTI, tablas académicas de Supabase ni sesiones LTI implementados. La fase 2 añade un simulador local independiente descrito en `phase2-implementation.md`; no reemplaza la arquitectura productiva aquí propuesta.

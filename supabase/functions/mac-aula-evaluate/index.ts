@@ -3,6 +3,7 @@ import {createEvaluationHandler} from '../../../aula/edge/handler.mjs';
 import {createPostgresRepository} from '../../../aula/edge/postgres-repository.mjs';
 import {geminiConfiguration} from '../../../aula/evaluation/gemini.mjs';
 import {CASE} from '../../../aula/cases/mezclador.mjs';
+import {pilotPolicy,isolatedStaging} from '../../../aula/edge/policy.mjs';
 
 // Node-compatible modules are reused, not copied into a new evaluator.
 const env = Object.fromEntries([
@@ -12,13 +13,15 @@ const env = Object.fromEntries([
 ].map(name=>[name,Deno.env.get(name)]).filter(([,value])=>value!==undefined));
 // Never retrieve or return this value over HTTP. It stays in the provider closure.
 const databaseUrl = Deno.env.get('MAC_AULA_DATABASE_URL');
-const enabled = Deno.env.get('MAC_AULA_EDGE_ENABLED')==='1'&&!!databaseUrl;
+const configuration = Deno.env.toObject();
+const enabled = Deno.env.get('MAC_AULA_EDGE_ENABLED')==='1'&&isolatedStaging(configuration);
 let handler: (request: Request)=>Promise<Response>;
 if(enabled){
   const sql=postgres(databaseUrl!,{max:1,prepare:false,ssl:'require',connect_timeout:10,idle_timeout:20,onnotice:()=>{}});
+  const options=geminiConfiguration(env);
   handler=createEvaluationHandler({
-    repository:createPostgresRepository(sql,{dailyLimit:10}),caseData:CASE,
-    evaluationOptions:geminiConfiguration(env),allowedOrigin:Deno.env.get('MAC_AULA_ALLOWED_ORIGIN')||'',enabled:true,
+    repository:createPostgresRepository(sql,pilotPolicy(configuration)),caseData:CASE,
+    evaluationOptions:{...options,limits:{...options.limits,maxReservedTokens:80000}},allowedOrigin:Deno.env.get('MAC_AULA_ALLOWED_ORIGIN')||'',enabled:true,
     // Only ids and status; never error objects, request headers, submission text or secrets.
     logger:(event: Record<string, unknown>)=>console.info(JSON.stringify(event)),
   });

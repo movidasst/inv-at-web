@@ -39,14 +39,15 @@ export function createEvaluationHandler({repository,caseData,evaluationOptions={
     const total=validateReview(body.review,submission.document);const result=await repository.review(actor,{submissionId:body.submissionId,evaluationId:body.evaluationId,review:body.review,reason:body.reason,total});
     return reply(200,{status:'reviewed_proposal',reviewId:result.id,total,published:false,agsEligible:false});
    }
-   ensure(action==='evaluate','Acción no permitida',422);shape(body,Object.hasOwn(body,'action')?['action','submissionId']:['submissionId']);
+   ensure(['evaluate','retry'].includes(action),'Acción no permitida',422);
+   if(action==='retry'){shape(body,['action','submissionId','evaluationId','retryKey']);ensure(actor.role==='teacher','Solo docente puede reintentar',403);uuid(body.evaluationId);uuid(body.retryKey)}else shape(body,Object.hasOwn(body,'action')?['action','submissionId']:['submissionId']);
    const submission=await repository.submission(actor,body.submissionId);ensure(submission,'Entrega no disponible',404);
    ensure(submission.caseId===caseData.id&&submission.caseVersion===caseData.version,'La versión del caso no está disponible para evaluación',409);
    ensure(submission.rubricVersion===RUBRIC_VERSION,'La rúbrica de la actividad no coincide con el evaluador autorizado',409);
    ensure(submission.fictitious===true,'El piloto admite exclusivamente expedientes ficticios',403);
    validateDocument(submission.document,caseData);ensure(submission.snapshotHash===academicSnapshotHash(submission.document,caseData),'El snapshot de la entrega no coincide',409);
    const identity=evaluationOptions.identity||'deterministic';
-   const claim=await repository.claim(actor,{submissionId:submission.id,snapshotHash:submission.snapshotHash,evaluatorVersion:EVALUATOR_VERSION,providerIdentity:identity,requestId});
+   const claim=await repository.claim(actor,{submissionId:submission.id,snapshotHash:submission.snapshotHash,evaluatorVersion:EVALUATOR_VERSION,providerIdentity:identity,requestId,retry:action==='retry'?{evaluationId:body.evaluationId,key:body.retryKey}:null});
    if(!claim.acquired){const pending=['running','pending_correction'].includes(claim.job.state);return reply(pending?202:200,{status:claim.job.state,pending,error:pending?{code:'correction_pending',message:'La corrección sigue pendiente; no se ha asignado una nota.'}:null,evaluation:project(claim.job,actor)})}
    let record;
    try{record=await evaluate(submission,caseData,evaluationOptions);record.sourceSnapshotHash=submission.snapshotHash;record.sourceSnapshotHashFormat='canonical-json-v1'}catch{record=null}
@@ -67,6 +68,6 @@ function safeMessage(code){return ({400:'Solicitud no válida.',401:'Sesión aca
 function project(job,actor){
  const base={id:job.id,status:job.state,createdAt:job.createdAt,score:null,published:false,agsEligible:false};
  if(job.record){base.feedback=studentFeedback(job.record);if(actor.role==='teacher'){base.proposal=job.record.proposal;base.reviewCriteria=job.record.reviewCriteria;base.reasons=job.record.reasons;base.analysis=job.record.passes.map(p=>({verification:p.pass,criteria:p.result.criteria,flags:p.result.flags}));}}
- if(job.reviews?.length)base.reviews=actor.role==='teacher'?job.reviews:[];
+ if(actor.role==='teacher'){base.attempts=job.attempts;base.nextRetryAt=job.nextRetryAt;base.runs=job.runs;if(job.reviews?.length)base.reviews=job.reviews;}
  return base;
 }

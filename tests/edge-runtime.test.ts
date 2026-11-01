@@ -1,6 +1,14 @@
 import {createEvaluationHandler} from '../aula/edge/handler.mjs';
 import {geminiConfiguration} from '../aula/evaluation/gemini.mjs';
 import {CASE} from '../aula/cases/mezclador.mjs';
+import {isolatedStaging,pilotPolicy} from '../aula/edge/policy.mjs';
+import {registrationConfig,registrationData} from '../aula/lti/config.mjs';
+Deno.test('Staging and LTI configuration fail closed in Edge without production configuration',()=>{
+ if(isolatedStaging({})||isolatedStaging({MAC_AULA_ENVIRONMENT:'production'}))throw new Error('Staging must be explicit');
+ if(pilotPolicy({}).maxStudents!==50)throw new Error('Pilot student capacity must be bounded');
+ const c=registrationConfig({id:'test',issuer:'https://moodle.example.invalid',clientId:'test',authorizationUrl:'https://moodle.example.invalid/auth',jwksUrl:'https://moodle.example.invalid/keys',toolBaseUrl:'https://aula.example.invalid/academic',activities:[{deployment:'d',course:'c',resource:'r',fictitious:true}]});
+ if(registrationData(c).automatic_grades!==false)throw new Error('Publishing must remain disabled');
+});
 Deno.test('Edge runtime reuses shared modules and denies requests before configuration',async()=>{
  const handler=createEvaluationHandler({repository:{},caseData:CASE,enabled:false});
  const response=await handler(new Request('https://edge.invalid/',{method:'POST'}));

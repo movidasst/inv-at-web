@@ -1,7 +1,7 @@
 # MAC Profesional y MAC Aula
 
 ## Objetivo y alcance
-Integrar MAC Aula con Moodle mediante LTI 1.3 sin perjudicar MAC Profesional ni exigir a estudiantes credenciales de La Movida. Fase 1 aprobada; fase 2 incorpora un laboratorio local independiente en `aula/`. **LTI todavía no está implementado.** Véanse `docs/audit-phase1.md`, `docs/lti-architecture.md`, `docs/lti-setup-moodle.md`, `docs/testing.md` y `docs/phase2-implementation.md`.
+Integrar MAC Aula con Moodle mediante LTI 1.3 sin perjudicar MAC Profesional ni exigir a estudiantes credenciales de La Movida. Fase 1 aprobada; fase 2 incorpora un laboratorio local independiente en `aula/`. **Existe un backend LTI de staging probado localmente; no está desplegado ni conectado a Moodle.** Véanse `docs/audit-phase1.md`, `docs/lti-architecture.md`, `docs/lti-setup-moodle.md`, `docs/testing.md` y `docs/phase2-implementation.md`.
 
 ## Arquitectura comprobada
 - `index.html` y `v2.html` cargan `auth.js`, `v2.js`, `auth.css`, `v2.css`. GitHub Pages sirve el cliente; `CNAME` identifica mac.movidasst.com.
@@ -53,3 +53,6 @@ Arquitectura propuesta, no sistema operativo: ver ADR dentro de `docs/lti-archit
 
 ## Candidato Edge en revisión
 Consultar docs/edge-evaluation-review.md. Reutilizar aula/evaluation mediante aula/edge; no modificar moodle-admin ni moodle-evaluation-v2. No desplegar ni aplicar supabase/sql/mac-aula-evaluation-review.sql sin autorización. El endpoint exige sesiones académicas verificadas: no crear un bypass con identidades simuladas o JWT Moodle sin validar. Mantener MAC_AULA_EDGE_ENABLED desactivado hasta completar lanzamiento LTI, staging, entregas inmutables y permisos. Pruebas: pnpm install --frozen-lockfile antes de node --test; Deno check/test y regresiones de navegador/PDF. Los tests PostgreSQL usan PGlite; no conectan producción. Los Secrets remotos no se recuperan ni imprimen. Revisiones docentes también son propuestas, sin publicación automática ni AGS.
+
+## Piloto LTI y reintentos
+Estado vigente: docs/lti-pilot-development.md. Backend de lanzamiento en aula/lti y función mac-aula-academic; mantener habilitación a cero, publicar notas desactivado y sin AGS. Solo staging académico aislado: nunca Directorio/MAC Profesional. Configuración explícita, login restringido, RLS, sesiones opacas/cookie y CSRF. Reintentos docentes con clave de idempotencia, espera, máximo tres ejecuciones, reserva global y modelo fijo. Cupo máximo 50 estudiantes no significa 50 correcciones gratuitas al día. Todas las herramientas se instalan exclusivamente con pnpm install --frozen-lockfile; no mezclar npm install ni npx. Deno usa supabase/deno.lock. No afirmar conexión de la UI completa ni prueba con Moodle real hasta ejecutarlas.

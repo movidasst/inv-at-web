@@ -52,3 +52,5 @@ Pruebas de backend local/staging con datos ficticios, plataforma simulada y clav
 
 ## Candidato Edge 2026-11-01
 Resultados y límites: [edge-evaluation-review.md](edge-evaluation-review.md). 59 pruebas Node aprobadas y una real omitida; dos Deno aprobadas; tipos Edge, navegador Aula/Profesional y PDF 19/23 páginas aprobados. Instalar dependencias con pnpm install --frozen-lockfile. Sin despliegue ni SQL remoto ni llamadas reales Gemini.
+
+Piloto LTI: ver [lti-pilot-development.md](lti-pilot-development.md); 67 Node aprobadas y una prueba real omitida; tres Deno aprobadas. CI usa únicamente pnpm con lockfile para todas las herramientas.

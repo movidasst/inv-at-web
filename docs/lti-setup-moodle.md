@@ -1,3 +1,5 @@
+Estado actualizado: ver [lti-pilot-development.md](lti-pilot-development.md). El diseño siguiente es histórico; ahora existe backend LTI de staging probado localmente, sin despliegue ni conexión real. AGS, envío de notas y registro productivo siguen deshabilitados. No ejecutar los pasos históricos de publicación de calificaciones durante este piloto.
+
 # Configuración Moodle — guía de preparación
 
 No registrar herramienta de producción todavía: esta rama no implementa LTI. No usar mac.movidasst.com como URL de lanzamiento profesional ni sustituir su login.
