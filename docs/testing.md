@@ -22,6 +22,14 @@ Las dos últimas requieren Playwright, pdfjs-dist, @napi-rs/canvas y un navegado
 - Sin comprobación remota de SQL/RLS, registro Moodle, Moove ni lanzamientos reales. No hay integración LTI implementada que pueda certificarse.
 
 ## Matriz requerida antes del piloto
+### Ampliación de evaluación por competencias
+Motor independiente con 14 pruebas adicionales (41 pruebas unitarias/API en total en esta revisión): reglas sin puntos por completitud, árboles alternativos, feedback por ID, salida IA inválida, propuestas simuladas, desacuerdo, muestra QA, privacidad, errores/timeout/presupuesto, prompt injection, módulos formativos, métricas y persistencia de excepciones. No se conectó un modelo real ni se acreditó calibración con especialistas.
+
+El recorrido de navegador añade orientación formativa, bandeja por excepciones, reclamación y ajuste justificado de una devolución, conservando el recorrido anterior y los anchos 360/768/1366. Las políticas y pruebas no autorizan publicación automática de notas. Ver `evaluation-architecture.md` para el plan de calibración y los riesgos.
+
+### Incremento de fase 2
+`node --test tests/*.test.cjs`: 27/27 aprobadas, incluyendo dominio/API Aula, aislamiento por ámbito, revisiones, conflicto de guardado, entregas y evaluación. `node tests/aula-browser.cjs`: aprobado con Edge headless, recorrido estudiante/docente y anchos 360/768/1366 px. `node tests/browser.cjs` y `node tests/pdf.cjs`: regresiones profesionales aprobadas; documentos de 19 y 23 páginas. Ver `phase2-implementation.md` para alcance y límites. No se probó identidad LTI ni RLS real; las personas de desarrollo se seleccionan libremente y no son autenticación.
+
 | Área | Escenario / resultado esperado |
 |---|---|
 | Profesional | Credenciales válidas/sesión inventada/revocación; crear, editar, borrar, demo; recarga cifrada y corrupción preservada. |

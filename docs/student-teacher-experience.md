@@ -1,6 +1,10 @@
 # Experiencia académica y primer caso
 
-Diseño pendiente de implementar. Curso: Investigación de Accidentes de Trabajo: metodología, causalidad y prevención. Un expediente integrador progresivo por actividad; navegación conserva avances sin convertir completar pantallas en evidencia de competencia.
+Experiencia implementada en laboratorio local y ampliada con evaluación por competencias. Curso: Investigación de Accidentes de Trabajo: metodología, causalidad y prevención. Un expediente integrador progresivo por actividad; navegación conserva avances sin convertir completar pantallas en evidencia de competencia.
+
+El modelo objetivo es evaluación automática con supervisión por excepciones, según `evaluation-architecture.md`. El estudiante recibe feedback referido a elementos de su expediente, orientación formativa por módulo y posibilidad de reclamar o corregir en nuevo intento. La bandeja docente prioriza dudas, inconsistencias, errores técnicos y control de calidad. En el estado actual, la IA no está conectada: las reglas devuelven orientación sin puntuación y los expedientes completos requieren revisión. No confundir esa limitación temporal con el diseño definitivo.
+
+Los indicadores y descriptores de la rúbrica 2.0.0 están en `aula/shared/evaluation-rubric.mjs`; cada resultado conserva versiones y evidencias examinadas. El docente puede ajustar la evaluación con explicación y referencias; modificar una devolución publicada exige justificación y conserva la versión anterior. No se revelan solucionarios ni puntuaciones preliminares en feedback automático.
 
 | Etapa / módulo | Tarea e insumos | Procesamiento y producto | Evaluación / siguiente paso |
 |---|---|---|---|

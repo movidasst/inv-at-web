@@ -1,7 +1,7 @@
 # MAC Profesional y MAC Aula
 
 ## Objetivo y alcance
-Integrar MAC Aula con Moodle mediante LTI 1.3 sin perjudicar MAC Profesional ni exigir a estudiantes credenciales de La Movida. Primera entrega: auditoría, arquitectura y pruebas de base. **LTI todavía no está implementado.** Véanse `docs/audit-phase1.md`, `docs/lti-architecture.md`, `docs/lti-setup-moodle.md` y `docs/testing.md`.
+Integrar MAC Aula con Moodle mediante LTI 1.3 sin perjudicar MAC Profesional ni exigir a estudiantes credenciales de La Movida. Fase 1 aprobada; fase 2 incorpora un laboratorio local independiente en `aula/`. **LTI todavía no está implementado.** Véanse `docs/audit-phase1.md`, `docs/lti-architecture.md`, `docs/lti-setup-moodle.md`, `docs/testing.md` y `docs/phase2-implementation.md`.
 
 ## Arquitectura comprobada
 - `index.html` y `v2.html` cargan `auth.js`, `v2.js`, `auth.css`, `v2.css`. GitHub Pages sirve el cliente; `CNAME` identifica mac.movidasst.com.
@@ -26,7 +26,18 @@ Cinco etapas Aula y cuatro módulos del curso: caso y obligaciones (M1), evidenc
 ## Seguridad y LTI obligatorios
 Validar firma con JWKS de registro confiable, issuer, aud/azp, deployment, nonce, state, exp/iat/nbf, versión/tipo, contexto y actividad autorizada. State/nonce aleatorios de un uso y consumo atómico con TTL; vincular intento al navegador. Rechazar `none`, algoritmos no autorizados y URLs de claves recibidas del token. Sesiones académicas revocables; autorización en cada operación por usuario/curso/actividad. No autorizar por correo, cédula o nombre. No publicar claves privadas ni service_role. RLS y grants restrictivos; no usar user_metadata para permisos; no confundir un JWT Moodle con un token Supabase Auth. Auditoría sin tokens ni contenido sensible. Soluciones y evaluaciones separadas del borrador del estudiante.
 
-AGS solo desde backend, OAuth2 con private_key_jwt, scopes mínimos, endpoint permitido y nota confirmada por docente sobre una entrega inmutable. No calificar favorablemente por llenar campos. Deep Linking es posterior y requiere validación y respuesta firmada; no anunciarlo antes.
+AGS solo desde backend, OAuth2 con private_key_jwt, scopes mínimos, endpoint permitido y nota definitiva autorizada sobre una entrega inmutable. En piloto, las propuestas automáticas no se publican definitivamente sin el protocolo de validación. Publicación automática futura solo tras calibración satisfactoria y aprobación expresa del administrador. No calificar favorablemente por llenar campos. Deep Linking es posterior y requiere validación y respuesta firmada; no anunciarlo antes.
+
+## Requisito central: evaluación automática por competencias
+Sustituye la revisión manual de todas las investigaciones como modelo objetivo. Combinar reglas determinísticas, evaluación técnica IA, rúbrica de 100 puntos (20/15/35/20/10), feedback específico y revisión por excepciones. Referencia normativa del diseño: `docs/evaluation-architecture.md` y `docs/evaluation-costs-risks.md`; prevalecen sobre descripciones anteriores de evaluación exclusivamente manual.
+
+Motor independiente en `aula/evaluation/`, ejecutado solo en backend. Rúbrica pública 2.0.0 con indicadores y descriptores; no comparar literalmente con un solo árbol ni penalizar alternativas defendibles. La integridad/completitud no da puntos. Validar nivel/indicador/referencias y calcular total en servidor. Conservar versiones, snapshot, proveedor/modelo, uso y justificaciones. Proyectar feedback público con whitelist; no exponer razones libres IA, solucionarios ni notas preliminares no publicadas.
+
+Estados: automática validada (propuesta piloto), requiere revisión, incompleta/no válida. Timeout, presupuesto o error IA jamás equivalen a cero. Alarmas léxicas no prueban culpa ni ataque. La confianza declarada por un modelo no es probabilidad calibrada. Exigir dataset privado valorado por especialistas, alternativas, concordancia por criterio, sesgo, umbrales observados, muestreo aleatorio y auditoría. Cambiar modelo/prompt/rúbrica exige recalibrar.
+
+No elegir ni conectar proveedor, pagar servicios, enviar datos a terceros o colocar claves en navegador sin autorización. Hoy se ejecutan reglas reales y adaptadores simulados de prueba; no hay evaluador IA conectado ni calibración real. Todas las propuestas del motor conservan finalGrade=null, published=false y agsEligible=false. Preparar cola durable/AGS y política de publicación futura en incrementos separados; no simular esas capacidades.
+
+La bandeja docente admite reclamaciones y ajustes justificados; conservar historia de versiones y permisos por ámbito. Evaluación formativa de M1–M4 es orientación, nunca nota final. Fixtures de software genéricos no son solucionarios ni investigaciones acreditadas por especialistas; no afirmar fiabilidad por pasar esos tests.
 
 ## Pruebas y despliegue
 `node --test tests/*.test.cjs`; pruebas navegador y PDF según `docs/testing.md`. Verificar también SQL únicamente en entorno autorizado de pruebas. Requerir aislamiento entre estudiantes, cursos, actividades y docentes; replay, expiración, revocación, SSRF, CSRF, XSS, concurrencia, móvil y árbol completo legible en PDF.
@@ -34,4 +45,6 @@ AGS solo desde backend, OAuth2 con private_key_jwt, scopes mínimos, endpoint pe
 Trabajar en rama independiente. No cambiar producción, ejecutar SQL remoto, publicar Pages, desplegar funciones ni fusionar sin pruebas y aprobación explícita del usuario. No modificar ni eliminar tablas profesionales. Migraciones académicas aditivas, reversibles cuando sea posible, con respaldo y prueba de rollback. No borrar datos para solucionar un error.
 
 ## Decisiones y pendientes
+El laboratorio de fase 2 usa Node 22+, solo loopback, `MAC_AULA_DEV=1`, personas simuladas seleccionables y archivo `.aula-dev/store.json` excluido de git. No es autenticación ni almacenamiento de producción. No desplegar `aula/dev/server.mjs`, servir directorios arbitrarios ni introducir solucionarios en fixtures. Ver `aula/README.md` para arranque y pruebas. El adaptador MAC v2 se prueba con el validador profesional; PDF/Excel Aula y extracción de su renderizador están pendientes.
+
 Arquitectura propuesta, no sistema operativo: ver ADR dentro de `docs/lti-architecture.md`. Obtener registro real Moodle (issuer/client ID/deployment/endpoints), actividad/curso autorizados, staging Supabase y origen backend. Confirmar versiones reales Moodle/Moove y logo con administrador. Definir conservación, límites y responsables. Verificar seguridad desplegada profesional sin revelar credenciales. Registrar resultados reales y limitaciones en `docs/testing.md`; no inventar pruebas de extremo a extremo.

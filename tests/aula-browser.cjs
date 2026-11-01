@@ -1,0 +1,100 @@
+const assert=require('node:assert/strict');
+const {mkdtemp,mkdir,rm}=require('node:fs/promises');
+const path=require('node:path');
+const {tmpdir}=require('node:os');
+const {chromium}=require('playwright');
+(async()=>{
+ const {createDevelopmentServer}=await import('../aula/dev/server.mjs');
+ const dir=await mkdtemp(path.join(tmpdir(),'mac-aula-browser-'));
+ assert.ok(path.resolve(dir).startsWith(path.resolve(tmpdir())+path.sep+'mac-aula-browser-'));
+ const app=await createDevelopmentServer({file:path.join(dir,'store.json'),enabled:true}),url=await app.listen();
+ await mkdir('test-artifacts',{recursive:true});
+ let browser;
+ try{
+  browser=await chromium.launch({headless:true,...(process.env.MAC_BROWSER_CHANNEL?{channel:process.env.MAC_BROWSER_CHANNEL}:{})});
+  const studentContext=await browser.newContext(),teacherContext=await browser.newContext(),bContext=await browser.newContext();
+  const page=await studentContext.newPage(),teacher=await teacherContext.newPage(),other=await bContext.newPage(),errors=[];
+  for(const p of [page,teacher,other])p.on('pageerror',e=>errors.push(e.message));
+  await page.goto(url);await page.getByRole('button',{name:'Estudiante A (simulada)',exact:true}).click();
+  await page.getByLabel('Síntesis inicial',{exact:true}).waitFor();
+  assert.equal(await page.locator('#status').textContent(),'');
+  await page.screenshot({path:'test-artifacts/aula-case.png',fullPage:true});
+  await page.getByLabel('Síntesis inicial',{exact:true}).fill('Síntesis de prueba de interfaz; no es solución del caso.');
+  await page.getByLabel('Obligaciones de investigación y fundamento').fill('Revisar marco del curso y documentar actuaciones.');
+  await page.getByRole('button',{name:'Comprobar avance del módulo',exact:true}).click();
+  await page.getByText('Retroalimentación preliminar: no es calificación definitiva ni se envía a Moodle.',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'2. Evidencias y hechos',exact:true}).click();
+  await page.getByRole('button',{name:'Agregar análisis de evidencia',exact:true}).click();
+  await page.getByLabel('Clasificación',{exact:true}).selectOption('comprobado');
+  await page.getByLabel('Análisis y límites de la fuente').fill('<img src=x onerror=alert(1)> Texto de análisis simulado para probar escape.');
+  await page.getByRole('button',{name:'Agregar acontecimiento',exact:true}).click();
+  await page.getByLabel('Momento y precisión temporal').fill('Momento por contrastar');
+  await page.getByLabel('Acontecimiento observado').fill('Acontecimiento ficticio de prueba.');
+  for(let i=0;i<2;i++){
+   await page.getByRole('button',{name:'Agregar hecho',exact:true}).click();
+   await page.getByLabel('Enunciado objetivo',{exact:true}).nth(i).fill(`Observación de prueba ${i+1}.`);
+   await page.getByLabel('Estado del hecho',{exact:true}).nth(i).selectOption('verificado');
+  }
+  await page.getByRole('button',{name:'3. Árbol de Causas',exact:true}).click();
+  await page.getByRole('checkbox').nth(0).check();await page.getByRole('checkbox').nth(1).check();
+  const finalId=await page.getByLabel('Acontecimiento final',{exact:true}).locator('option').nth(2).getAttribute('value');
+  await page.getByLabel('Acontecimiento final',{exact:true}).selectOption(finalId);
+  await page.getByRole('button',{name:'Agregar relación causal',exact:true}).click();
+  await page.getByLabel('Justificación causal con evidencia').fill('Justificación estructural ficticia para prueba, requiere valoración docente.');
+  await page.getByRole('button',{name:'Validar y actualizar diagrama',exact:true}).click();
+  assert.equal(await page.locator('.graph-node').count(),2);assert.equal(await page.locator('.graph-edge').count(),1);
+  const width=Number(await page.locator('svg[role=img]').getAttribute('width'));
+  await page.getByRole('button',{name:'Acercar +',exact:true}).click();assert.ok(Number(await page.locator('svg[role=img]').getAttribute('width'))>width);
+  await page.getByRole('button',{name:'Restablecer vista',exact:true}).click();
+  await page.getByRole('button',{name:'4. Medidas preventivas',exact:true}).click();
+  await page.getByRole('button',{name:'Agregar medida',exact:true}).click();
+  await page.getByLabel('Control propuesto y prioridad técnica').fill('Control ficticio de prueba.');
+  await page.getByLabel('Responsable',{exact:true}).fill('Rol simulado');await page.getByLabel('Plazo',{exact:true}).fill('Durante el ejercicio');
+  await page.getByLabel('Indicador de seguimiento').fill('Indicador ficticio');await page.getByLabel('Criterio para evaluar eficacia').fill('Criterio ficticio de prueba.');
+  await page.getByRole('button',{name:'5. Informe y entrega',exact:true}).click();
+  await page.getByLabel('Conclusiones y recomendaciones').fill('Conclusión de prueba de interfaz.');await page.getByLabel('Limitaciones e información pendiente').fill('Este registro no representa una solución del caso ni demuestra calidad.');
+  await page.getByRole('button',{name:'Guardar avance',exact:true}).click();await page.waitForFunction(()=>document.getElementById('status').textContent.includes('Guardado confirmado'));
+  await page.getByRole('button',{name:'Entregar para revisión',exact:true}).click();await page.waitForFunction(()=>document.getElementById('status').textContent.includes('Snapshot')||document.getElementById('status').textContent.includes('snapshot'));
+  await page.reload();await page.getByRole('button',{name:'5. Informe y entrega',exact:true}).click();
+  await page.getByRole('heading',{name:'Requiere revisión docente',exact:true}).waitFor();
+  assert.ok((await page.getByLabel('Conclusiones y recomendaciones').inputValue()).includes('prueba de interfaz'));
+  assert.equal(await page.locator('.report img').count(),0); // User markup must remain literal text.
+  await teacher.goto(url);await teacher.getByRole('button',{name:'Docente (simulado)',exact:true}).click();
+  await teacher.getByRole('heading',{name:'Bandeja de revisión por excepciones',exact:true}).waitFor();
+  await teacher.screenshot({path:'test-artifacts/aula-exceptions.png',fullPage:true});
+  await teacher.getByRole('button',{name:'Revisar excepción',exact:true}).click();
+  const labels=['Identificación y clasificación de evidencias','Reconstrucción de hechos','Construcción del Árbol de Causas','Medidas preventivas','Informe y trazabilidad'],points=[10,7.5,17.5,10,5];
+  for(let i=0;i<labels.length;i++){
+   await teacher.getByLabel(`Puntos · ${labels[i]}`,{exact:true}).fill(String(points[i]));
+   await teacher.getByLabel(`Observación · ${labels[i]}`,{exact:true}).fill('Observación docente ficticia para verificar recorrido.');
+   await teacher.getByLabel(`Referencias · ${labels[i]}`,{exact:true}).fill('summary');
+  }
+  await teacher.getByLabel('Retroalimentación global').fill('Devolución de prueba: profundizar el contraste de fuentes.');
+  await teacher.getByRole('button',{name:'Guardar revisión docente',exact:true}).click();await teacher.waitForFunction(()=>document.getElementById('status').textContent.includes('50/100'));
+  await page.reload();await page.getByRole('button',{name:'5. Informe y entrega',exact:true}).click();await page.getByText('Pendiente de devolución docente publicada.',{exact:true}).waitFor();
+  await teacher.getByRole('button',{name:'Publicar devolución al estudiante',exact:true}).click();await teacher.getByText('Devolución publicada conservada. Un nuevo intento admite otra evaluación.',{exact:true}).waitFor();
+  await page.reload();await page.getByRole('button',{name:'5. Informe y entrega',exact:true}).click();await page.getByText('Evaluación docente: 50/100. No enviada a Moodle.',{exact:true}).waitFor();
+  await page.getByText('Solicitar revisión por disconformidad',{exact:true}).click();
+  await page.getByLabel('Motivo de la reclamación',{exact:true}).fill('Solicito revisar la valoración de las fuentes.');
+  await page.getByRole('button',{name:'Registrar reclamación',exact:true}).click();
+  await page.waitForFunction(()=>document.getElementById('status').textContent.includes('Reclamación registrada'));
+  // Appeal field is transient, not an unsaved investigation change.
+  page.on('dialog',d=>d.accept());
+  await teacher.reload();await teacher.getByRole('button',{name:'Revisar excepción',exact:true}).click();
+  await teacher.getByRole('button',{name:'Preparar ajuste por excepción',exact:true}).click();
+  await teacher.getByLabel('Puntos · Identificación y clasificación de evidencias',{exact:true}).fill('12');
+  await teacher.getByLabel('Justificación del ajuste',{exact:true}).fill('Se revisó la evidencia citada en la reclamación.');
+  await teacher.getByRole('button',{name:'Publicar ajuste justificado',exact:true}).click();
+  await teacher.waitForFunction(()=>document.getElementById('status').textContent.includes('52/100'));
+  await page.reload();await page.getByRole('button',{name:'5. Informe y entrega',exact:true}).click();
+  await page.getByText('Evaluación docente: 52/100. No enviada a Moodle.',{exact:true}).waitFor();
+  await page.setViewportSize({width:360,height:800});
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+  await page.screenshot({path:'test-artifacts/aula-mobile.png',fullPage:true});
+  await page.setViewportSize({width:768,height:1024});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+  await page.setViewportSize({width:1366,height:900});await page.screenshot({path:'test-artifacts/aula-student.png',fullPage:true});
+  await teacher.screenshot({path:'test-artifacts/aula-teacher.png',fullPage:true});
+  await other.goto(url);await other.getByRole('button',{name:'Estudiante B (simulado)',exact:true}).click();await other.getByRole('button',{name:'5. Informe y entrega',exact:true}).click();await other.getByText('Aún no has entregado.',{exact:true}).waitFor();
+  assert.deepEqual(errors,[]);console.log('PASS Aula browser: five stages, formative guidance, graph/zoom, save/reload, submission, exception inbox, justified adjustment after appeal, hidden draft, feedback, student B isolation, XSS text and 360/768/1366 px.');
+ }finally{if(browser)await browser.close();await app.close();await rm(dir,{recursive:true,force:true})}
+})().catch(error=>{console.error(error);process.exitCode=1});

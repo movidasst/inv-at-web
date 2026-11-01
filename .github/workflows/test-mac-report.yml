@@ -8,6 +8,7 @@ on:
       - 'v2.css'
       - 'index.html'
       - 'v2.html'
+      - 'aula/**'
       - 'tests/**'
       - 'server/**'
   pull_request:
@@ -28,6 +29,8 @@ jobs:
         run: |
           npm install --no-save playwright@1.62.1 pdfjs-dist@5.6.205 @napi-rs/canvas@0.1.100
           npx playwright install --with-deps chromium
+      - name: Verificar recorrido académico de desarrollo
+        run: node tests/aula-browser.cjs
       - name: Verificar sesión, Excel y PDF en navegador
         run: node tests/browser.cjs
       - name: Comprobar límites de texto PDF y renderizar evidencia
