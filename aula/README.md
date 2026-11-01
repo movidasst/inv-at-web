@@ -2,7 +2,7 @@
 
 Aplicación independiente de MAC Profesional. **Solo para pruebas locales con datos simulados.** No implementa LTI ni autenticación real y no debe desplegarse como herramienta pública. Las personas seleccionables sirven para probar roles, no para dar acceso a estudiantes reales.
 
-Actualización: evaluación automática por competencias es el objetivo central. `evaluation/` implementa reglas, contrato IA, estados, límites y métricas; ningún proveedor está conectado. Al entregar se conserva una evaluación determinística y feedback sin nota; el estudiante puede pedir orientación por módulo y reclamar. La bandeja docente muestra excepciones. Rúbrica de indicadores 2.0.0 y políticas en `docs/evaluation-architecture.md`. Las puntuaciones definitivas automáticas y el envío a Moodle permanecen deshabilitados.
+Actualización: evaluación automática por competencias es el objetivo central. `evaluation/` implementa reglas, contrato IA, estados, límites, métricas y adaptador Gemini opcional del servidor. Está desactivado por defecto; configuración de GEMINI_API_KEY en `docs/gemini-setup.md`, sin secretos en navegador. Sin IA continúa la orientación determinística; el estudiante puede consultar cada módulo y reclamar. La bandeja docente muestra excepciones y criterios pendientes. Rúbrica 2.0.0 y políticas en `docs/evaluation-architecture.md`. Las puntuaciones definitivas automáticas y el envío a Moodle permanecen deshabilitados.
 
 ## Ejecutar
 Requiere Node.js 22 o posterior, sin paquetes adicionales para el servidor:

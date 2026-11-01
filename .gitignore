@@ -4,3 +4,7 @@ fix-code.cjs
 
 # Simulated development data must never be published
 .aula-dev/
+
+# Backend credentials; templates contain no values
+.env*
+!.env.example

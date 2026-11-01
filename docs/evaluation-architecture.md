@@ -2,6 +2,8 @@
 
 Esta actualización sustituye la revisión manual obligatoria de cada expediente como modelo objetivo. MAC Aula combina reglas determinísticas, valoración técnica asistida por IA, rúbrica y supervisión por excepciones. No modifica MAC Profesional. Estado actual: motor y adaptadores simulados probados localmente; ningún proveedor conectado, calibración real ni publicación automática habilitada.
 
+**Incremento Gemini:** existe ahora un adaptador oficial REST opcional de servidor, desactivado por defecto. Ver `gemini-setup.md` para clave privada, flags de habilitación, modelo/versiones, límites y pruebas. No hay clave configurada en la sesión de desarrollo, por lo que no se ejecutó prueba real. Se mantiene la rúbrica 2.0.0 y el evaluador avanza a 1.1.0: las propuestas parciales conservan puntos por criterio valorable, total null si falta alguno y lista de criterios pendientes. Sin IA no se presume que las reglas pueden valorar calidad causal. Las descripciones de “sin proveedor” que siguen corresponden al estado previo a este incremento.
+
 ## Flujo y estados
 Entrega inmutable → validación de integridad → comprobaciones determinísticas → dos verificaciones técnicas estructuradas → decisión por política/calibración → propuesta o bandeja de excepciones → validación/publicación definitiva autorizada → futura outbox AGS.
 

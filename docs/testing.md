@@ -22,6 +22,9 @@ Las dos últimas requieren Playwright, pdfjs-dist, @napi-rs/canvas y un navegado
 - Sin comprobación remota de SQL/RLS, registro Moodle, Moove ni lanzamientos reales. No hay integración LTI implementada que pueda certificarse.
 
 ## Matriz requerida antes del piloto
+### Integración opcional Gemini
+52 pruebas aprobadas y una prueba real opt-in omitida (53 en total). Los nuevos tests verifican petición oficial HTTPS, secreto solo en cabecera, catálogo/modelo/versiones, cuota, red, 5xx, bloqueos/JSON, consumo/concurrencia y enlace al almacenamiento con identidad de proveedor. El motor conserva propuestas parciales y criterios pendientes; evaluador 1.1.0 invalida calibración anterior. Aula en Edge y regresiones profesionales de navegador/PDF aprobadas (19/23 páginas). No hay GEMINI_API_KEY configurada y no se realizó ninguna llamada real; la disponibilidad de cuenta y la precisión de Gemini no se han medido. `gemini-setup.md` detalla cómo habilitar la prueba con datos ficticios.
+
 ### Ampliación de evaluación por competencias
 Motor independiente con 14 pruebas adicionales (41 pruebas unitarias/API en total en esta revisión): reglas sin puntos por completitud, árboles alternativos, feedback por ID, salida IA inválida, propuestas simuladas, desacuerdo, muestra QA, privacidad, errores/timeout/presupuesto, prompt injection, módulos formativos, métricas y persistencia de excepciones. No se conectó un modelo real ni se acreditó calibración con especialistas.
 

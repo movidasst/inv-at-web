@@ -1,5 +1,6 @@
 // Development simulator only: deliberately no production login or LTI endpoints.
 import http from 'node:http';
+import {geminiConfiguration} from '../evaluation/gemini.mjs';
 import {readFile} from 'node:fs/promises';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import {resolve} from 'node:path';
@@ -10,9 +11,9 @@ import {DomainError,ensure,shape,RUBRIC} from '../shared/models.mjs';
 
 const root=fileURLToPath(new URL('../',import.meta.url));
 const assets=new Map([['/','public/index.html'],['/app.mjs','public/app.mjs'],['/aula.css','public/aula.css'],['/shared/models.mjs','shared/models.mjs'],['/shared/mac-adapter.mjs','shared/mac-adapter.mjs'],['/shared/evaluation-rubric.mjs','shared/evaluation-rubric.mjs']]);
-export async function createDevelopmentServer({file,enabled=false,sessionTtlMs=3600000}={}) {
+export async function createDevelopmentServer({file,enabled=false,sessionTtlMs=3600000,evaluationOptions={}}={}) {
  ensure(enabled===true,'Servidor deshabilitado: habilitar explícitamente solo para desarrollo',503);ensure(typeof file==='string','Falta archivo de desarrollo');
- const store=await openStore(file),sessions=new Map();
+ const store=await openStore(file,evaluationOptions),sessions=new Map();
  const hash=v=>createHash('sha256').update(v).digest('hex');
  const server=http.createServer(async(req,res)=>{
   const origin=`http://127.0.0.1:${server.address().port}`;
@@ -63,5 +64,5 @@ export async function createDevelopmentServer({file,enabled=false,sessionTtlMs=3
  return {server,store,listen:()=>new Promise(resolve=>server.listen(0,'127.0.0.1',()=>resolve(`http://127.0.0.1:${server.address().port}`))),close:()=>new Promise(resolve=>{server.close(resolve);server.closeAllConnections()})};
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href){
- const app=await createDevelopmentServer({file:resolve('.aula-dev/store.json'),enabled:process.env.MAC_AULA_DEV==='1'});const url=await app.listen();console.log(`MAC Aula — SOLO DESARROLLO, datos ficticios: ${url}\nSesiones simuladas seleccionables; no es autenticación. No publicar este servidor.`);
+ const app=await createDevelopmentServer({file:resolve('.aula-dev/store.json'),enabled:process.env.MAC_AULA_DEV==='1',evaluationOptions:geminiConfiguration(process.env)});const url=await app.listen();console.log(`MAC Aula — SOLO DESARROLLO, datos ficticios: ${url}\nSesiones simuladas seleccionables; no es autenticación. No publicar este servidor.`);
 }
