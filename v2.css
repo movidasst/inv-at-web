@@ -97,3 +97,12 @@
 .report-index a:focus-visible,.printreport h2:focus-visible{outline:3px solid #ffb600;outline-offset:2px}
 .printreport h2{scroll-margin-top:16px}
 @media print{.report-index{display:none}}
+
+.game-entry,.game-tabs a{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;min-height:44px}
+.game-login{margin:14px 0;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.game-login small{color:var(--muted)}
+.game-brand{display:block}.game-brand img{display:block;width:180px;height:auto}
+.game-tools{padding:0 0 12px}.game-tools a{padding:7px 0}
+.game-frame{display:block;width:100%;height:78vh;height:78dvh;min-height:420px;border:1px solid var(--line);border-radius:16px;background:#fff}
+.game-hero{margin-bottom:10px}
+@media(max-width:600px){.game-tabs{width:100%}.game-tabs .btn{flex:1}.game-frame{border-radius:10px}}
