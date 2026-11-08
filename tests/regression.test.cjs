@@ -12,9 +12,9 @@ function harness(){
  const localStorage={getItem:key=>memory.get(key)||null,setItem:(key,value)=>memory.set(key,value),removeItem:key=>memory.delete(key)};
  const window={addEventListener(){},scrollTo(){},XLSX:{utils:{book_new:()=>({Sheets:{}}),aoa_to_sheet:rows=>({rows}),book_append_sheet:(b,s,n)=>b.Sheets[n]=s,encode_range:()=>'',sheet_to_json:s=>s.rows}}};
  const sandbox={window,document,localStorage,crypto:webcrypto,TextEncoder,TextDecoder,btoa,atob,console,alert(){},confirm:()=>true};
- const source=fs.readFileSync(require.resolve('../v2.js'),'utf8').replace(/\}\)\(\);\s*$/,`async function withoutRender(action){const old=render;render=()=>{};try{return await action()}finally{render=old}}window.audit={initial,demo,warnings,captureDiagram,replaceSafely:(...args)=>withoutRender(()=>replaceSafely(...args)),restoreInvestigation:()=>withoutRender(restoreInvestigation),buildWorkbook,workbookToState,removeRecord,isWorkInProgress,save,load,renderReportHtml,setState:v=>s=v,getState:()=>s,setCy:v=>cy=v,configure:async()=>{STORAGE="test-store";storageKey=await crypto.subtle.importKey("raw",new Uint8Array(32),"AES-GCM",false,["encrypt","decrypt"])},switchWithoutRender:(v)=>{const old=render;render=()=>{};try{showInvestigation(v,8);save()}finally{render=old}}};})();`);
+ const source=fs.readFileSync(require.resolve('../v2.js'),'utf8').replace(/\}\)\(\);\s*$/,`async function withoutRender(action){const old=render;render=()=>{};try{return await action()}finally{render=old}}window.audit={initial,demo,updateReviewStatus,warnings,captureDiagram,replaceSafely:(...args)=>withoutRender(()=>replaceSafely(...args)),restoreInvestigation:()=>withoutRender(restoreInvestigation),buildWorkbook,workbookToState,removeRecord,isWorkInProgress,save,load,renderReportHtml,setState:v=>s=v,getState:()=>s,setCy:v=>cy=v,configure:async()=>{STORAGE="test-store";storageKey=await crypto.subtle.importKey("raw",new Uint8Array(32),"AES-GCM",false,["encrypt","decrypt"])},switchWithoutRender:(v)=>{const old=render;render=()=>{};try{showInvestigation(v,8);save()}finally{render=old}}};})();`);
  vm.runInNewContext(source,sandbox);
- return {api:window.audit,window,labels,memory,localStorage};
+ return {api:window.audit,window,labels,memory,localStorage,elements};
 }
 test('demo Excel roundtrip retains facts, graph and measures',()=>{const {api}=harness();const result=api.workbookToState(api.buildWorkbook(api.demo()));assert.equal(result.facts.length,12);assert.equal(result.diagram.cytoscape.length,13);assert.equal(result.actions.length,4)});
 test('replacement destroys old graph before saving imported state',async()=>{const {api}=harness();await api.configure();const incoming=api.demo();let destroyed=false;api.setCy({destroy:()=>{destroyed=true},elements:()=>({jsons:()=>[{data:{id:'OLD'}}]})});api.switchWithoutRender(incoming);await api.save();assert.ok(destroyed);assert.equal(api.getState().diagram.cytoscape[0].data.id,'H08')});
@@ -125,4 +125,13 @@ test('a backup failure prevents replacement of the active investigation',async()
  await assert.rejects(api.replaceSafely(next,1),/Cuota agotada/);
  assert.equal(api.getState().general.code,'REAL-1');
  await api.load();assert.equal(api.getState().general.code,'REAL-1');
+});
+
+test('review status reflects the case contents independently of the selected screen',()=>{
+ const {api,elements}=harness();
+ api.setState(api.initial());api.updateReviewStatus();
+ assert.equal(elements.get('caseReviewStatus').textContent,'Expediente sin iniciar');
+ const state=api.initial();state.general.description='Descripción parcial';
+ api.setState(state);api.updateReviewStatus();
+ assert.match(elements.get('caseReviewStatus').textContent,/avisos pendientes/);
 });

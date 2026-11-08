@@ -30,7 +30,7 @@
 <script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script defer src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script defer src="v2.js?v=20261108-resguardo"></script>
+<script defer src="v2.js?v=20261108-guia"></script>
 <script defer src="auth.js?v=20261108-resguardo"></script>
 <script defer src="https://www.movidasst.com/analytics.js?v=20261025-ga4com2"></script>
 </head><body class="auth-locked">
@@ -86,9 +86,9 @@
 <button class="btn danger" id="clearDemoBtn" type="button" hidden>Volver al expediente real</button>
 <button class="btn secondary" id="restoreCaseBtn" type="button" hidden>Recuperar copia anterior</button>
 </div></section>
-<div class="progress-wrap"><div class="row between"><strong id="stepLabel">Etapa 1 de 9</strong><small class="muted">Los datos se guardan en este navegador</small></div><div class="progress"><div id="progressBar" style="width:0%"></div></div></div>
+<div class="progress-wrap"><div class="row between"><strong id="stepLabel">Etapa 1 de 9</strong><small id="caseReviewStatus" class="muted">Expediente sin iniciar</small></div><div class="progress" aria-hidden="true"><div id="progressBar" style="width:0%"></div></div></div>
 <nav class="steps" id="steps" aria-label="Etapas de la investigación"></nav>
-<main class="page" id="stage" aria-live="polite"></main>
+<main class="page" id="stage"></main>
 <div class="end-nav"><button class="btn secondary" id="back">← Anterior</button><button class="btn" id="next">Siguiente →</button></div>
 <footer class="foot">Academia Movida de SST · Instrumentos técnicos de apoyo, no formularios oficiales de INPSASEL · <a href="https://www.movidasst.com">www.movidasst.com</a></footer>
 </div>

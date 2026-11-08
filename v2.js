@@ -45,6 +45,7 @@ async function readEncrypted(value,target){
 function save(){
  if(cy)s.diagram.cytoscape=cy.elements().jsons();
  const snapshot=JSON.stringify(s),target=activeStorage(),key=storageKey;
+ updateReviewStatus();
  pendingSaves++;$("saved").textContent="Guardando…";
  saveQueue=saveQueue.then(async()=>{
   await writeEncrypted(target,key,snapshot);
@@ -119,21 +120,72 @@ function legalDeadline(end){
  const [day,time]=new Date(end).toISOString().split("T");
  return day.split("-").reverse().join("/")+" · "+time.slice(0,5)+" h (Venezuela)";
 }
-function headerNav(){const nav=$("steps");nav.innerHTML="";STEPS.forEach((name,i)=>{const b=btn((i===step?"● ":"")+i+". "+name,()=>goto(i),"step"+(i===step?" current":""));nav.append(b)});$("progressBar").style.width=Math.round(step/(STEPS.length-1)*100)+"%";$("stepLabel").textContent="Etapa "+(step+1)+" de "+STEPS.length}
-function goto(i){if(cy){save();cy.destroy();cy=null}step=Math.min(STEPS.length-1,Math.max(0,i));render();window.scrollTo({top:0,behavior:"smooth"})}
-function render(){headerNav();updateDemoControls();const root=$("stage");root.innerHTML="";const renders=[intro,identification,legal,evidences,facts,diagram,analysis,actions,report];renders[step](root);if(s.demoMode&&step>0)demoTip(root,step);$("back").disabled=step===0;$("next").disabled=step===STEPS.length-1;$("next").textContent=step===STEPS.length-2?"Ver informe →":"Siguiente →"}
-function intro(root){pTitle(root,"MAC · Método del Árbol de Causas","Herramienta de Investigación de Accidentes de Trabajo · Academia Movida de SST · LOPCYMAT, Reglamento Parcial y NT-04:2023");
-note(root,"Ruta práctica: identificación → actuaciones legales → evidencias → hechos → árbol de causas → causas inmediatas, básicas y raíz → medidas → informe. Los formularios creados aquí son instrumentos técnicos de apoyo y no sustituyen los oficiales del INPSASEL.");
-const gg=grid(root,"three");[["1 · Marco legal","Art. 69 y arts. 73–76 de LOPCYMAT; arts. 83–85 del Reglamento."],["2 · Investigación técnica","NT-04:2023, art. 19: recopilación objetiva y análisis de causas inmediatas y básicas."],["3 · Método y prevención","Árbol de causas OIT y profundización técnica en causas raíz y controles."]].forEach(x=>{const c=E("div","item");c.append(E("h3","",x[0]));c.append(E("p","",x[1]));gg.append(c)});
-const g=group(root,"Investigación de prueba y demostración guiada");
-g.append(E("p","", "Incluye un expediente ficticio completo, con evidencias, cronología, árbol, análisis de causas y medidas. No contiene datos reales ni comprobantes oficiales."));
-const row=E("div","row");
-row.append(btn("Ver investigación completa e informe",()=>loadFullDemo(false),"btn"));
-row.append(btn("Recorrer demostración guiada",()=>loadFullDemo(true)));
-row.append(btn("Descargar caso de prueba en Excel",()=>downloadWorkbook(demo(),"DEMO_AT_2026")));
-row.append(btn("Comenzar investigación real",()=>startNewInvestigation()));
-if(s.isDemo)row.append(btn("Volver al expediente real",()=>discardDemo(),"btn danger"));
-g.append(row);
+const stageGuides=[
+ null,
+ ["Identifica el acontecimiento y las personas involucradas.","«A las 09:00 se registró una lesión de mano en la línea 2».","Registra fecha, hora, lugar y una descripción observable.",1],
+ ["Documenta la notificación y la declaración por destinatario.","Una notificación puede tener constancia y estar fuera del plazo.","Revisa la fecha, hora y constancia de cada actuación aplicable.",3],
+ ["Recopila fuentes y ordena los sucesos.","E03 es el video. Su hora de grabación permite ubicar el contacto.","Indica qué respalda cada fuente y deja claras las horas estimadas.",4],
+ ["Redacta un hecho observable por registro y vincula su evidencia.","«A las 08:58 el resguardo estaba abierto», según E03.","Antes de marcar un hecho como verificado, comprueba el alcance de la fuente.",6],
+ ["Marca el acontecimiento final y reconstruye sus antecedentes.","El movimiento del rodillo y la mano en la zona pueden formar una conjunción.","Comprueba qué tuvo que ocurrir y revisa los vínculos punteados.",9],
+ ["Explica el papel de los hechos y el estado de las barreras.","Un permiso incompleto documenta una omisión de registro. El aislamiento requiere su propia evidencia.","Distingue hallazgos sustentados, hipótesis y diligencias pendientes.",5],
+ ["Define medidas vinculadas a los hallazgos y cómo evaluar su eficacia.","Registrar la instalación de un resguardo y documentar su prueba funcional son verificaciones distintas.","Revisa responsable, plazo y criterio de eficacia para cada medida.",14],
+ ["Revisa el informe antes de exportarlo.","Una rama abierta debe indicar qué dato falta y qué diligencia lo aclararía.","Comprueba que las conclusiones, los límites y el seguimiento estén identificados.",16]
+];
+function updateReviewStatus(){
+ const target=$("caseReviewStatus");
+ if(!target)return;
+ if(!isWorkInProgress()){target.textContent="Expediente sin iniciar";return}
+ const n=warnings().length;
+ target.textContent=n?"Revisión: "+n+(n===1?" aviso pendiente":" avisos pendientes"):"Revisión automática: sin avisos. Requiere validación técnica.";
+}
+function headerNav(){
+ const nav=$("steps");nav.innerHTML="";
+ STEPS.forEach((name,i)=>{
+  const b=btn(i===0?name:i+". "+name,()=>goto(i),"step"+(i===step?" current":""));
+  if(i===step)b.setAttribute("aria-current","step");
+  nav.append(b);
+ });
+ $("progressBar").style.width=Math.round(step/(STEPS.length-1)*100)+"%";
+ $("stepLabel").textContent="Pantalla "+(step+1)+" de "+STEPS.length+" · "+STEPS[step];
+ updateReviewStatus();
+}
+function goto(i){
+ if(cy){save();cy.destroy();cy=null}
+ step=Math.min(STEPS.length-1,Math.max(0,i));
+ if(step>0&&!s.isDemo){s.resumeStep=step;save()}
+ render();
+ const heading=$("stage").querySelector?.("h2");
+ if(heading){heading.tabIndex=-1;heading.focus({preventScroll:true});heading.scrollIntoView({block:"start"});}
+}
+function render(){
+ headerNav();updateDemoControls();const root=$("stage");root.innerHTML="";
+ const renders=[intro,identification,legal,evidences,facts,diagram,analysis,actions,report];renders[step](root);
+ if(step>0){
+  const [task,example,check,faq]=stageGuides[step], guide=E("aside","note stage-guide");
+  guide.setAttribute("aria-label","Orientación para esta etapa");
+  for(const [label,text] of [["Tu tarea",task],["Ejemplo",example],["Antes de avanzar",check]]){
+   const p=E("p");p.append(E("strong","",label+". "),document.createTextNode(text));guide.append(p);
+  }
+  link(guide,"Consultar pregunta relacionada del FAQ","faq.html#p"+faq);
+  root.insertBefore(guide,root.children[2]||null);
+ }
+ if(s.demoMode&&step>0)demoTip(root,step);
+ $("back").disabled=step===0;$("next").disabled=step===STEPS.length-1;
+ $("next").hidden=step===0;$("next").textContent=step===STEPS.length-2?"Ver informe →":"Siguiente →";
+}
+function intro(root){
+ pTitle(root,"¿Cómo quieres trabajar en MAC?","Elige entre continuar tu expediente real y aprender con un caso ficticio.");
+ const choices=grid(root);
+ const work=group(choices,"Expediente real");
+ work.append(E("p","",s.isDemo?"Abre el espacio de trabajo real. MAC lo conserva separado de la demostración.":isWorkInProgress()?"Retoma el expediente guardado en este navegador.":"Empieza por la identificación del acontecimiento."));
+ const row=E("div","row");work.append(row);
+ row.append(btn(s.isDemo?"Abrir expediente real":isWorkInProgress()?"Continuar mi expediente":"Iniciar investigación",()=>s.isDemo?discardDemo():goto(Number.isInteger(s.resumeStep)?s.resumeStep:1),"btn"));
+ if(!s.isDemo&&isWorkInProgress())row.append(btn("Iniciar otra investigación",()=>startNewInvestigation()));
+ const training=group(choices,"Práctica con un caso ficticio");
+ training.append(E("p","","Recorre el caso de la banda con indicaciones por etapa o consulta directamente el informe de ejemplo."));
+ const demoRow=E("div","row");training.append(demoRow);
+ demoRow.append(btn("Recorrer demo guiada",()=>loadFullDemo(true)),btn("Ver informe de demostración",()=>s.isDemo?goto(8):loadFullDemo(false)),btn("Descargar ejemplo en Excel",()=>downloadWorkbook(demo(),"DEMO_AT_2026")));
+ note(root,"Ruta de trabajo: identificación → actuación legal → evidencias y cronología → hechos → árbol → análisis → medidas → informe.");
 const priv=group(root,"Tratamiento de datos y límites");priv.append(E("p","", "La información se guarda automáticamente solo en el almacenamiento local de este navegador. No hay cuenta, respaldo remoto ni recuperación entre dispositivos. Para conservarla, exporta un Excel y guárdalo en un lugar seguro. Evita usar datos personales o médicos sensibles en dispositivos compartidos. No se envían expedientes a servicios de IA."));priv.append(E("p","muted","La aplicación ayuda a documentar una investigación; no determina oficialmente el origen ocupacional ni certifica cumplimiento legal."));
 const rr=group(root,"Referencias de trabajo");Object.keys(refs).forEach(k=>{const x=E("p");x.append(E("strong","",refs[k]+" · "));link(x,"Consultar fuente",URLs[k]);rr.append(x)})}
 
@@ -712,7 +764,7 @@ async function discardDemo(){
   await save();if(saveError)throw saveError;
   const value=localStorage.getItem(STORAGE), real=value?await readEncrypted(value,STORAGE):initial();
   if(!value||real.isDemo){await replaceSafely(initial(),1);return}
-  showInvestigation(real,1);refreshSaveStatus();
+  showInvestigation(real,Number.isInteger(real.resumeStep)?real.resumeStep:1);refreshSaveStatus();
  }catch{alert("No se pudo abrir el expediente real. Conserva el guardado y solicita asistencia.")}
 }
 async function startNewInvestigation(){
@@ -733,7 +785,7 @@ function updateDemoControls(){
   if(recovery){try{recovery.hidden=!localStorage.getItem(recoveryStorage())}catch{recovery.hidden=true}}
   if(loadBtn)loadBtn.textContent=active?"Reiniciar demostración":"Cargar demo completa";
   const bar=$("demoBanner");
-  if(bar)bar.classList.toggle("demo-active",active);
+  if(bar){bar.hidden=step===0;bar.classList.toggle("demo-active",active);}
 }
 
 function bindHeader(){
@@ -759,7 +811,7 @@ window.MACApp = {
     s = initial();
     const hasSavedCase=await load(legacyScope);
     if(!hasSavedCase){s=demo();s.demoMode=false;s.isDemo=true}
-    step=s.isDemo?8:0;
+    step=0;
     bindHeader();render();await save();if(saveError)throw saveError;
     appInitialized = true;
   },
