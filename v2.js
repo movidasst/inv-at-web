@@ -764,6 +764,7 @@ function writeReportPdf(pdf,article,{tree,code,isDemo,logo}){
    if(el.matches(".report-paragraph")){const k=el.querySelector("strong")?.textContent||"Detalle";paragraph(k,el.textContent.slice(k.length));return}
    if(el.matches(".report-tree-note")){paragraph("Árbol de causas",el.textContent);return}
    if(el.matches(".report-caption")){drawText(el.textContent,L,W,8.3,4.2);y+=6;return}
+   if(el.matches(".report-references li")){drawText(el.textContent,L,W,8.8,4.5);y+=3;return}
    if(el.matches("li")){paragraph("Punto de revisión",el.textContent);return}
    if(el.matches("p")){drawText(el.textContent);y+=5;return}
    if(el.matches(".report-field,.report-card-heading"))return;
