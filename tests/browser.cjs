@@ -50,6 +50,27 @@ const {chromium}=require('playwright');
  await conjunctionWarning.click();
  await page.waitForSelector('#graph:focus');
  assert.match(await page.locator('#stepLabel').textContent(),/Árbol de causas/);
+ // Complete the imported conjunction from the keyboard at a phone-sized viewport.
+ await page.setViewportSize({width:390,height:844});
+ const linkPanel=page.locator('section.group').filter({has:page.getByRole('heading',{name:'Crear y revisar vínculos',exact:true})});
+ const cause=linkPanel.getByLabel('Antecedente (causa)'),effect=linkPanel.getByLabel('Consecuente (efecto)');
+ const type=linkPanel.getByLabel('Relación al conectar'),addLink=linkPanel.getByRole('button',{name:'Agregar vínculo'});
+ const [from,to]=await page.evaluate(async()=>{
+  const b=XLSX.read(await(await fetch('/test-artifacts/demo.xlsx')).arrayBuffer(),{type:'array'});
+  return XLSX.utils.sheet_to_json(b.Sheets.RELACIONES,{header:1}).find(row=>row[3]==='conjuncion').slice(1,3);
+ });
+ await cause.selectOption(from);await effect.selectOption(from);await addLink.press('Enter');
+ assert.match(await linkPanel.getByRole('status').textContent(),/hechos distintos/);
+ await effect.selectOption(to);await type.selectOption('conjuncion');await addLink.press('Enter');
+ assert.equal(await linkPanel.getByRole('listitem').count(),3);
+ assert.equal(await linkPanel.getByText('Conjunción por revisar',{exact:false}).count(),0);
+ await addLink.press('Enter');assert.match(await linkPanel.getByRole('status').textContent(),/ya existe/);
+ await cause.selectOption(to);await effect.selectOption(from);await addLink.press('Enter');
+ assert.match(await linkPanel.getByRole('status').textContent(),/ciclo causal/);
+ await linkPanel.getByRole('button',{name:/Quitar vínculo/}).last().press('Enter');
+ assert.equal(await linkPanel.getByRole('listitem').count(),2);
+ assert.equal(await linkPanel.getByText('Conjunción por revisar',{exact:false}).count(),1);
+ await page.setViewportSize({width:1366,height:900});
  // PDF pagination must retain a long company field including its last marker.
  const longBook=await page.evaluate(async()=>{const b=XLSX.read(await(await fetch('/test-artifacts/demo.xlsx')).arrayBuffer(),{type:'array'}),rows=XLSX.utils.sheet_to_json(b.Sheets.GENERAL,{header:1,defval:''});rows.find(r=>r[0]==='Empresa / entidad')[1]='Empresa '+('contenido extenso '.repeat(1300))+' MARCADOR_FINAL_EMPRESA';b.Sheets.GENERAL=XLSX.utils.aoa_to_sheet(rows);return Array.from(new Uint8Array(XLSX.write(b,{type:'array',bookType:'xlsx'})))});
  await page.locator('#import').setInputFiles({name:'long.xlsx',buffer:Buffer.from(longBook),mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});await page.waitForSelector('#reportPreview');

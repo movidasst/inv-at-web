@@ -277,18 +277,91 @@ function graphIntegrity(entries=graphData()){
 function graphData(){return Array.isArray(s.diagram.cytoscape)?s.diagram.cytoscape:[]}
 function diagram(root){pTitle(root,"5. Árbol de causas","Construye relaciones entre hechos comprobados. Selecciona primero la causa (antecedente) y después el efecto (consecuente). Método técnico OIT, no formulario oficial.");
 note(root,"Los nodos iniciales del árbol NO son automáticamente causas raíz. Su interpretación se realiza en la etapa siguiente con evidencias y justificación. No confundas una secuencia temporal con una relación causal.");
-const tools=E("div","row");let nextRelation="cadena";field(tools,"Relación al conectar",nextRelation,v=>nextRelation=v,"select",[["cadena","Cadena causal"],["conjuncion","Conjunción: antecedente necesario junto con otros"]]);const info=E("span","muted","Selecciona dos nodos para conectarlos: causa → efecto.");tools.append(btn("Organizar árbol",()=>{if(cy){cy.layout({name:window.cytoscapeDagre?"dagre":"breadthfirst",rankDir:"LR",animate:false}).run();save()}}));tools.append(btn("Marcar hecho final",()=>{if(!cy)return;const n=cy.nodes(":selected").first();if(!n.length){alert("Selecciona el nodo del acontecimiento final.");return}s.diagram.final=n.id();save();refreshGraph()}));tools.append(btn("Eliminar selección",()=>{if(!cy)return;const v=cy.$(":selected");if(v.length&&confirm("¿Eliminar estos elementos del diagrama?")){if(v.some(el=>el.id()===s.diagram.final))s.diagram.final="";cy.remove(v);save();refreshGraph()}},"btn danger"));root.append(tools);
-const wrap=E("div","grid-diagram");const left=E("div","facts-panel");left.append(E("h3","", "Hechos para incorporar"));const curr=graphData().filter(n=>n.group==="nodes").map(n=>n.data.id);
-s.facts.filter(factSupported).forEach(f=>{const b=btn("＋ "+f.text,()=>{if(cy&&cy.$id(f.id).empty()){cy.add({group:"nodes",data:{id:f.id,label:f.text}});cy.layout({name:window.cytoscapeDagre?"dagre":"grid",rankDir:"LR",animate:false}).run();save();refreshGraph()}},"factbtn");b.disabled=curr.includes(f.id);left.append(b)});if(!s.facts.some(factSupported))left.append(E("p","muted","Primero verifica hechos con una evidencia verificada."));wrap.append(left);const pane=E("div","canvas-wrap"), canvas=E("div","canvas");canvas.id="graph";canvas.setAttribute("aria-label","Lienzo del Árbol de Causas");pane.append(canvas);wrap.append(pane);root.append(wrap);
+const relationOptions=[["cadena","Cadena causal"],["conjuncion","Conjunción: antecedente necesario junto con otros"]];
+const panel=group(root,"Crear y revisar vínculos");
+panel.append(E("p","muted","Incorpora los hechos comprobados con los botones «Hechos para incorporar». Luego elige qué hecho hizo posible el otro. Usa el mismo tipo de relación si prefieres conectar los nodos en el lienzo."));
+const fields=grid(panel,"three");
+const antecedent=field(fields,"Antecedente (causa)","",()=>{},"select",[]);
+const consequence=field(fields,"Consecuente (efecto)","",()=>{},"select",[]);
+let nextRelation="cadena";
+field(fields,"Relación al conectar",nextRelation,v=>nextRelation=v,"select",relationOptions);
+const controls=E("div","row graph-link-controls");
+const add=btn("Agregar vínculo",()=>addLink(antecedent.value,consequence.value),"btn");
+const info=E("span","muted");info.setAttribute("role","status");
+controls.append(add,info);panel.append(controls);
+panel.append(E("h3","","Vínculos del árbol"));
+const links=E("ul","graph-links");links.tabIndex=-1;const emptyLinks=E("p","muted","Todavía no hay vínculos.");panel.append(emptyLinks,links);
+const tools=E("div","row");tools.append(btn("Organizar árbol",()=>{if(cy){cy.layout({name:window.cytoscapeDagre?"dagre":"breadthfirst",rankDir:"LR",animate:false}).run();save()}}));tools.append(btn("Marcar hecho final",()=>{if(!cy)return;const n=cy.nodes(":selected").first();if(!n.length){alert("Selecciona el nodo del acontecimiento final.");return}s.diagram.final=n.id();save();refreshGraph()}));tools.append(btn("Eliminar selección",()=>{if(!cy)return;const v=cy.$(":selected");if(v.length&&confirm("¿Eliminar estos elementos del diagrama?")){if(v.some(el=>el.id()===s.diagram.final))s.diagram.final="";cy.remove(v);save();refreshGraph()}},"btn danger"));root.append(tools);
+const wrap=E("div","grid-diagram");const left=E("div","facts-panel");left.append(E("h3","", "Hechos para incorporar"));const factButtons=new Map();
+s.facts.filter(factSupported).forEach(f=>{const b=btn("＋ "+f.text,()=>{if(cy&&cy.$id(f.id).empty()){cy.add({group:"nodes",data:{id:f.id,label:f.text}});cy.layout({name:window.cytoscapeDagre?"dagre":"grid",rankDir:"LR",animate:false}).run();save();refreshGraph()}},"factbtn");factButtons.set(f.id,b);left.append(b)});if(!s.facts.some(factSupported))left.append(E("p","muted","Primero verifica hechos con una evidencia verificada."));wrap.append(left);const pane=E("div","canvas-wrap"), canvas=E("div","canvas");canvas.id="graph";canvas.setAttribute("aria-label","Lienzo del Árbol de Causas");pane.append(canvas);wrap.append(pane);root.append(wrap);
 const t=E("p","muted","Los nodos en rojo y los vínculos punteados están por revisar. Sugerencia: marca el acontecimiento final, trabaja retrospectivamente e incorpora antecedentes necesarios. Para representar una conjunción, conecta todos los antecedentes relevantes con el mismo consecuente y explícalo en el análisis.");root.append(t);
-if(typeof window.cytoscape!=="function"){note(root,"No se pudo cargar la biblioteca del diagrama. Comprueba la conexión a internet.", "error");return}
-let nodes=graphData().filter(x=>x.group==="nodes"),edges=graphData().filter(x=>x.group==="edges");
+if(typeof window.cytoscape!=="function"){add.disabled=true;note(root,"No se pudo cargar la biblioteca del diagrama. Comprueba la conexión a internet.", "error");return}
+const nodes=graphData().filter(x=>x.group==="nodes");
 cy=cytoscape({container:canvas,elements:graphData(),style:graphStyle(),layout:{name:"preset"},wheelSensitivity:.16,minZoom:.2,maxZoom:2});
 if(nodes.length&&!nodes.some(x=>x.position&&Number.isFinite(x.position.x))){cy.layout({name:"grid"}).run()}
-let selected=null;cy.on("tap","node",ev=>{const n=ev.target;if(selected&&selected.id()!==n.id()){const from=selected.id(),to=n.id();selected.removeClass("selected-cause");selected=null;if(cy.edges().some(e=>e.data("source")===from&&e.data("target")===to)){info.textContent="Esa relación ya existe";return}if(hasPath(to,from)){info.textContent="No se permite crear un ciclo causal";return}cy.add({group:"edges",data:{id:ident(),source:from,target:to,relacion:nextRelation,relacionTexto:nextRelation==="conjuncion"?"conjunción":""}});info.textContent="Conexión guardada: causa → efecto";save();refreshGraph()}else{selected=n;n.addClass("selected-cause");info.textContent="Causa seleccionada. Ahora toca el efecto correspondiente.";n.select()}});
+let selected=null;
+cy.on("tap","node",ev=>{
+ const n=ev.target;
+ if(selected&&!selected.removed()&&selected.id()!==n.id()){
+  const from=selected.id();
+  selected.removeClass("selected-cause");selected=null;
+  addLink(from,n.id());
+ }else{
+  selected=n;n.addClass("selected-cause");n.select();
+  info.textContent="Causa seleccionada. Ahora toca el efecto correspondiente.";
+ }
+});
 cy.on("tap",ev=>{if(ev.target===cy&&selected){selected.removeClass("selected-cause");selected=null;info.textContent="Selección cancelada."}});
 cy.on("dragfree remove data",()=>save());
 refreshGraph();
+function addLink(from,to){
+ if(!from||!to){info.textContent="Selecciona el antecedente y el consecuente.";return}
+ if(from===to){info.textContent="El antecedente y el consecuente deben ser hechos distintos.";return}
+ const {supported}=graphIntegrity(cy.elements().jsons());
+ if(!supported.has(from)||!supported.has(to)||cy.$id(from).empty()||cy.$id(to).empty()){
+  info.textContent="Selecciona dos hechos comprobados que estén incorporados en el árbol.";return;
+ }
+ if(cy.edges().some(e=>e.data("source")===from&&e.data("target")===to)){
+  info.textContent="Ese vínculo ya existe.";return;
+ }
+ if(hasPath(to,from)){info.textContent="Ese vínculo cerraría un ciclo causal.";return}
+ cy.add({group:"edges",data:{id:ident(),source:from,target:to,relacion:nextRelation,relacionTexto:nextRelation==="conjuncion"?"conjunción":""}});
+ save();refreshGraph();
+ info.textContent="Vínculo guardado.";
+}
+function refreshLinks(integrity,validIds){
+ const available=cy.nodes().filter(n=>integrity.supported.has(n.id()));
+ for(const [select,placeholder] of [[antecedent,"Elige la causa"],[consequence,"Elige el efecto"]]){
+  const previous=select.value;
+  select.replaceChildren(new Option(placeholder,""));
+  available.forEach(n=>select.add(new Option(n.data("label"),n.id())));
+  select.value=available.some(n=>n.id()===previous)?previous:"";
+  select.disabled=available.length<2;
+ }
+ add.disabled=available.length<2;
+ for(const [id,button] of factButtons)button.disabled=cy.$id(id).nonempty();
+ const edges=cy.edges();
+ emptyLinks.hidden=edges.length>0;
+ links.replaceChildren();
+ edges.forEach(edge=>{
+  const path=edge.source().data("label")+" → "+edge.target().data("label");
+  const conjunction=edge.data("relacion")==="conjuncion";
+  const status=validIds.has(edge.id())?"En el árbol":conjunction&&integrity.incomplete.has(edge.data("target"))?"Conjunción por revisar":"Vínculo por revisar";
+  const item=E("li","item");
+  const remove=btn("Quitar vínculo",()=>{
+   if(!confirm("¿Quitar este vínculo del árbol?"))return;
+   const next=item.nextElementSibling||item.previousElementSibling;
+   cy.remove(edge);save();refreshGraph();
+   info.textContent="Vínculo eliminado.";
+   const nextButton=next&&Array.from(links.children).find(row=>row.dataset.edgeId===next.dataset.edgeId)?.querySelector("button");
+   (nextButton|| (add.disabled?links: add)).focus();
+  },"btn danger");
+  remove.setAttribute("aria-label","Quitar vínculo: "+path);
+  item.dataset.edgeId=edge.id();
+  item.append(E("div","item-title",path),E("p","muted",(conjunction?"Conjunción":"Cadena causal")+" · "+status),remove);
+  links.append(item);
+ });
+}
 function hasPath(from,to){const seen=new Set(),q=[from];while(q.length){const x=q.shift();if(x===to)return true;if(seen.has(x))continue;seen.add(x);cy.edges().filter(e=>e.data("source")===x).forEach(e=>q.push(e.data("target")))}return false}
 function refreshGraph(){
  if(!cy)return;
@@ -303,6 +376,7 @@ function refreshGraph(){
   const pending=edge.data("relacion")==="conjuncion"&&integrity.incomplete.has(edge.data("target"))?"Conjunción por revisar":"Vínculo por revisar";
   edge.style({"label":valid?(edge.data("relacionTexto")||""):pending,"line-style":valid?"solid":"dashed","line-color":color,"target-arrow-color":color});
  });
+ refreshLinks(integrity,validIds);
  cy.fit(undefined,55);
 }
 }
