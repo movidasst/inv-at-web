@@ -46,6 +46,10 @@ const {chromium}=require('playwright');
  await page.waitForSelector('#reportPreview');
  const afterPromise=page.waitForEvent('download');await page.locator('#export').click();await(await afterPromise).saveAs(path.join(artifacts,'after-import.xlsx'));
  const importedEdges=await page.evaluate(async()=>{const b=XLSX.read(await(await fetch('/test-artifacts/after-import.xlsx')).arrayBuffer(),{type:'array'});return XLSX.utils.sheet_to_json(b.Sheets.RELACIONES,{header:1}).length-1});assert.equal(importedEdges,2);
+ const conjunctionWarning=page.getByRole('button',{name:/Conjunción incompleta.*Ir a Árbol de causas/});
+ await conjunctionWarning.click();
+ await page.waitForSelector('#graph:focus');
+ assert.match(await page.locator('#stepLabel').textContent(),/Árbol de causas/);
  // PDF pagination must retain a long company field including its last marker.
  const longBook=await page.evaluate(async()=>{const b=XLSX.read(await(await fetch('/test-artifacts/demo.xlsx')).arrayBuffer(),{type:'array'}),rows=XLSX.utils.sheet_to_json(b.Sheets.GENERAL,{header:1,defval:''});rows.find(r=>r[0]==='Empresa / entidad')[1]='Empresa '+('contenido extenso '.repeat(1300))+' MARCADOR_FINAL_EMPRESA';b.Sheets.GENERAL=XLSX.utils.aoa_to_sheet(rows);return Array.from(new Uint8Array(XLSX.write(b,{type:'array',bookType:'xlsx'})))});
  await page.locator('#import').setInputFiles({name:'long.xlsx',buffer:Buffer.from(longBook),mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});await page.waitForSelector('#reportPreview');

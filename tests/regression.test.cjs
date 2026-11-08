@@ -12,7 +12,7 @@ function harness(){
  const localStorage={getItem:key=>memory.get(key)||null,setItem:(key,value)=>memory.set(key,value),removeItem:key=>memory.delete(key)};
  const window={addEventListener(){},scrollTo(){},XLSX:{utils:{book_new:()=>({Sheets:{}}),aoa_to_sheet:rows=>({rows}),book_append_sheet:(b,s,n)=>b.Sheets[n]=s,encode_range:()=>'',sheet_to_json:s=>s.rows}}};
  const sandbox={window,document,localStorage,crypto:webcrypto,TextEncoder,TextDecoder,btoa,atob,console,alert(){},confirm:()=>true};
- const source=fs.readFileSync(require.resolve('../v2.js'),'utf8').replace(/\}\)\(\);\s*$/,`async function withoutRender(action){const old=render;render=()=>{};try{return await action()}finally{render=old}}window.audit={initial,demo,updateReviewStatus,warnings,captureDiagram,replaceSafely:(...args)=>withoutRender(()=>replaceSafely(...args)),restoreInvestigation:()=>withoutRender(restoreInvestigation),buildWorkbook,workbookToState,removeRecord,isWorkInProgress,save,load,renderReportHtml,setState:v=>s=v,getState:()=>s,setCy:v=>cy=v,configure:async()=>{STORAGE="test-store";storageKey=await crypto.subtle.importKey("raw",new Uint8Array(32),"AES-GCM",false,["encrypt","decrypt"])},switchWithoutRender:(v)=>{const old=render;render=()=>{};try{showInvestigation(v,8);save()}finally{render=old}}};})();`);
+ const source=fs.readFileSync(require.resolve('../v2.js'),'utf8').replace(/\}\)\(\);\s*$/,`async function withoutRender(action){const old=render;render=()=>{};try{return await action()}finally{render=old}}window.audit={initial,demo,reviewIssues,updateReviewStatus,warnings,captureDiagram,replaceSafely:(...args)=>withoutRender(()=>replaceSafely(...args)),restoreInvestigation:()=>withoutRender(restoreInvestigation),buildWorkbook,workbookToState,removeRecord,isWorkInProgress,save,load,renderReportHtml,setState:v=>s=v,getState:()=>s,setCy:v=>cy=v,configure:async()=>{STORAGE="test-store";storageKey=await crypto.subtle.importKey("raw",new Uint8Array(32),"AES-GCM",false,["encrypt","decrypt"])},switchWithoutRender:(v)=>{const old=render;render=()=>{};try{showInvestigation(v,8);save()}finally{render=old}}};})();`);
  vm.runInNewContext(source,sandbox);
  return {api:window.audit,window,labels,memory,localStorage,elements};
 }
@@ -134,4 +134,20 @@ test('review status reflects the case contents independently of the selected scr
  const state=api.initial();state.general.description='Descripción parcial';
  api.setState(state);api.updateReviewStatus();
  assert.match(elements.get('caseReviewStatus').textContent,/avisos pendientes/);
+});
+
+test('report notices retain the exact stage and record needed for review',()=>{
+ const {api}=harness(), data=api.demo();api.setState(data);
+ data.legal.formalCommittee.proof='';
+ data.facts.find(f=>f.id==='H02').evidenceId='';
+ const action=data.actions[0];action.owner='';
+ const issues=api.reviewIssues();
+ const legal=issues.find(x=>x.text==='Declaración formal al CSSL: sin constancia.');
+ assert.equal(legal.stage,2);assert.equal(legal.id,'review-legal-formalCommittee');
+ assert.ok(issues.some(x=>x.stage===4&&x.id==='review-fact-H02'));
+ assert.ok(issues.some(x=>x.stage===5&&x.id==='graph'&&x.element==='H02'));
+ assert.ok(issues.some(x=>x.stage===7&&x.id==='review-action-'+action.id));
+ const print=api.renderReportHtml({forPdf:true});
+ assert.match(print,/Declaración formal al CSSL: sin constancia/);
+ assert.doesNotMatch(print,/class="review-link"/);
 });
