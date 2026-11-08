@@ -200,7 +200,7 @@ const t=[
 "Módulo 1. Compara las notificaciones iniciales y las declaraciones formales simuladas por destinatario. Ninguna constancia tiene validez legal.",
 "Módulo 2. Lee E01–E11. Fíjate en que E07–E08 son testimonios pendientes y E09 (foto posterior) no prueba el estado previo.",
 "Módulo 2. Compara hechos verificados con H11 y H12, que permanecen pendientes. No deben utilizarse como hechos definitivos.",
-"Módulo 3. Revisa las conjunciones: banda energizada + resguardo abierto → posibilidad de contacto. El diagrama contiene hallazgos adicionales aún sin conexión causal verificada.",
+"Módulo 3. Compara la conjunción que conduce al contacto con la disyunción que sale de él. Sigue la cadena del paro al corte del motor. Identifica los hechos registrados por separado y explica cuáles requieren más evidencia.",
 "Módulo 3. Observa que H08 se presenta como POSIBLE causa raíz, no como conclusión comprobada. E11 obliga a profundizar en la gestión del aislamiento.",
 "Módulo 4. Examina las cuatro medidas, sus responsables y cómo verificar la eficacia; una acción ejecutada no es necesariamente eficaz.",
 "Módulo 4. El informe reúne el expediente y advierte sobre información pendiente. También puedes descargarlo en PDF y exportar toda la investigación a Excel."
@@ -320,26 +320,50 @@ function factEvidenceEditor(card,f,status){
 function factSupported(f){
  return Boolean(f?.status==="verificado"&&String(f.text||"").trim()&&hasVerifiedEvidence(f));
 }
+const relationNames={cadena:"Cadena causal",conjuncion:"Conjunción",disyuncion:"Disyunción"};
+function relationText(type){return type==="cadena"?"":relationNames[type]?.toLowerCase()||""}
 function graphIntegrity(entries=graphData()){
  const supported=new Set(s.facts.filter(factSupported).map(f=>f.id));
  const nodeIds=new Set(entries.filter(e=>e.group==="nodes").map(e=>e.data.id));
  const edges=entries.filter(e=>e.group==="edges");
  const endpoints=e=>nodeIds.has(e.data.source)&&nodeIds.has(e.data.target)&&supported.has(e.data.source)&&supported.has(e.data.target);
- const conjunctions=new Map();
- for(const e of edges.filter(e=>e.data.relacion==="conjuncion")){
-  if(!conjunctions.has(e.data.target))conjunctions.set(e.data.target,[]);
-  conjunctions.get(e.data.target).push(e);
+ const conjunctions=new Map(),disjunctions=new Map(),incoming=new Map();
+ for(const e of edges){
+  const {source,target,relacion}=e.data;
+  incoming.set(target,(incoming.get(target)||0)+1);
+  const groups=relacion==="conjuncion"?conjunctions:relacion==="disyuncion"?disjunctions:null;
+  if(!groups)continue;
+  const key=relacion==="conjuncion"?target:source;
+  if(!groups.has(key))groups.set(key,[]);
+  groups.get(key).push(e);
  }
  const incomplete=new Set([...conjunctions].filter(([,group])=>new Set(group.map(e=>e.data.source)).size<2||group.some(e=>!endpoints(e))).map(([id])=>id));
- const usable=edges.filter(e=>endpoints(e)&&!(e.data.relacion==="conjuncion"&&incomplete.has(e.data.target)));
- return {supported,nodeIds,incomplete,usable};
+ const incompleteDisjunctions=new Set([...disjunctions].filter(([,group])=>new Set(group.map(e=>e.data.target)).size<2||group.some(e=>!endpoints(e)||incoming.get(e.data.target)!==1)).map(([id])=>id));
+ const usable=edges.filter(({data})=>Object.hasOwn(relationNames,data.relacion||"cadena")&&
+  !(data.relacion==="conjuncion"&&incomplete.has(data.target))&&!(data.relacion==="disyuncion"&&incompleteDisjunctions.has(data.source))).filter(endpoints);
+ return {supported,nodeIds,incomplete,incompleteDisjunctions,usable};
+}
+function pendingLink(data,integrity){
+ if(data.relacion==="conjuncion"&&integrity.incomplete.has(data.target))return "Conjunción por revisar";
+ if(data.relacion==="disyuncion"&&integrity.incompleteDisjunctions.has(data.source))return "Disyunción por revisar";
+ return "Vínculo por revisar";
 }
 function graphData(){return Array.isArray(s.diagram.cytoscape)?s.diagram.cytoscape:[]}
 function diagram(root){pTitle(root,"5. Árbol de causas","Construye relaciones entre hechos comprobados. Selecciona primero la causa (antecedente) y después el efecto (consecuente). Método técnico OIT, no formulario oficial.");
 note(root,"Los nodos iniciales del árbol NO son automáticamente causas raíz. Su interpretación se realiza en la etapa siguiente con evidencias y justificación. No confundas una secuencia temporal con una relación causal.");
-const relationOptions=[["cadena","Cadena causal"],["conjuncion","Conjunción: antecedente necesario junto con otros"]];
+const relationOptions=[["cadena","Cadena causal"],["conjuncion","Conjunción: antecedentes que actúan juntos"],["disyuncion","Disyunción: un antecedente común y varios efectos"]];
 const panel=group(root,"Crear y revisar vínculos");
 panel.append(E("p","muted","Incorpora los hechos comprobados con los botones «Hechos para incorporar». Luego elige qué hecho hizo posible el otro. Usa el mismo tipo de relación si prefieres conectar los nodos en el lienzo."));
+const guide=E("details");
+guide.append(E("summary","","¿Qué relación debo usar?"));
+const examples=E("ul");
+for(const line of [
+ "Cadena: un antecedente directo explica el hecho que estás analizando.",
+ "Conjunción: dos o más antecedentes necesarios confluyen en el mismo efecto. Selecciona Conjunción en cada vínculo.",
+ "Disyunción: un mismo antecedente directo explica dos o más efectos que pueden ocurrir independientemente entre sí. Selecciona Disyunción en cada vínculo que sale de ese antecedente.",
+ "Independencia: si dos hechos pueden ocurrir uno sin el otro y no hay relación causal entre ellos, represéntalos sin flecha entre sí. Si aún no sabes si hay una relación, registra la duda en los límites del análisis."
+])examples.append(E("li","",line));
+guide.append(examples);link(guide,"Ver ejemplos ilustrados","faq.html#relaciones");panel.append(guide);
 const fields=grid(panel,"three");
 const antecedent=field(fields,"Antecedente (causa)","",()=>{},"select",[]);
 const consequence=field(fields,"Consecuente (efecto)","",()=>{},"select",[]);
@@ -385,7 +409,7 @@ function addLink(from,to){
   info.textContent="Ese vínculo ya existe.";return;
  }
  if(hasPath(to,from)){info.textContent="Ese vínculo cerraría un ciclo causal.";return}
- cy.add({group:"edges",data:{id:ident(),source:from,target:to,relacion:nextRelation,relacionTexto:nextRelation==="conjuncion"?"conjunción":""}});
+ cy.add({group:"edges",data:{id:ident(),source:from,target:to,relacion:nextRelation,relacionTexto:relationText(nextRelation)}});
  save();refreshGraph();
  info.textContent="Vínculo guardado.";
 }
@@ -405,8 +429,7 @@ function refreshLinks(integrity,validIds){
  links.replaceChildren();
  edges.forEach(edge=>{
   const path=edge.source().data("label")+" → "+edge.target().data("label");
-  const conjunction=edge.data("relacion")==="conjuncion";
-  const status=validIds.has(edge.id())?"En el árbol":conjunction&&integrity.incomplete.has(edge.data("target"))?"Conjunción por revisar":"Vínculo por revisar";
+  const status=validIds.has(edge.id())?"En el árbol":pendingLink(edge.data(),integrity);
   const item=E("li","item");
   const remove=btn("Quitar vínculo",()=>{
    if(!confirm("¿Quitar este vínculo del árbol?"))return;
@@ -418,7 +441,7 @@ function refreshLinks(integrity,validIds){
   },"btn danger");
   remove.setAttribute("aria-label","Quitar vínculo: "+path);
   item.dataset.edgeId=edge.id();
-  item.append(E("div","item-title",path),E("p","muted",(conjunction?"Conjunción":"Cadena causal")+" · "+status),remove);
+  item.append(E("div","item-title",path),E("p","muted",(relationNames[edge.data("relacion")||"cadena"]||"Relación desconocida")+" · "+status),remove);
   links.append(item);
  });
 }
@@ -433,8 +456,7 @@ function refreshGraph(){
  });
  cy.edges().forEach(edge=>{
   const valid=validIds.has(edge.id()), color=valid?"#007b85":"#b42318";
-  const pending=edge.data("relacion")==="conjuncion"&&integrity.incomplete.has(edge.data("target"))?"Conjunción por revisar":"Vínculo por revisar";
-  edge.style({"label":valid?(edge.data("relacionTexto")||""):pending,"line-style":valid?"solid":"dashed","line-color":color,"target-arrow-color":color});
+  edge.style({"label":valid?relationText(edge.data("relacion")):pendingLink(edge.data(),integrity),"line-style":valid?"solid":"dashed","line-color":color,"target-arrow-color":color});
  });
  refreshLinks(integrity,validIds);
  cy.fit(undefined,55);
@@ -478,6 +500,7 @@ function reviewIssues(){
  for(const id of ids)if(!factSupported(facts.get(id)))add("Nodo sin hecho verificado con evidencia: "+id,5,"graph",id);
  for(const e of edges)if(!ids.has(e.data.source)||!ids.has(e.data.target))add("Relación con nodo inexistente: "+e.data.id,5,"graph",e.data.id);
  for(const id of integrity.incomplete)add("Conjunción incompleta o sin sustento suficiente: "+id,5,"graph",id);
+ for(const id of integrity.incompleteDisjunctions)add("Disyunción por revisar: el antecedente "+id+" debe tener al menos dos efectos comprobados para los que sea el único antecedente registrado.",5,"graph",id);
  if(edges.length&&!integrity.usable.length)add("No hay vínculos con sustento suficiente para exportar.",5,"graph");
  if(!Object.values(s.analyses).some(x=>x.classification==="inmediata"))add("No se ha clasificado ninguna causa inmediata.",6);
  if(!Object.values(s.analyses).some(x=>x.classification==="basica"))add("No se ha clasificado ninguna causa básica.",6);
@@ -558,12 +581,17 @@ function captureDiagram(){
   }
   const conjunctions=new Set(links.filter(e=>e.data.relacion==="conjuncion").map(e=>e.data.target));
   if(conjunctions.size){for(const id of conjunctions){const b=positions.get(id);if(!b)continue;ctx.fillStyle="#006b76";ctx.font="bold 14px Arial";ctx.textAlign="right";ctx.fillText("CONJUNCIÓN",b.x-16,b.y-11)}}
+  for(const id of new Set(links.filter(e=>e.data.relacion==="disyuncion").map(e=>e.data.source))){
+   const b=positions.get(id);
+   ctx.fillStyle="#006b76";ctx.font="bold 14px Arial";ctx.textAlign="left";
+   ctx.fillText("DISYUNCIÓN · VER DETALLE EN INFORME",b.x,b.y+b.h+20);
+  }
   ctx.fillStyle="#e6f1f5";ctx.fillRect(0,H-78,W,78);
   ctx.textAlign="left";ctx.font="16px Arial";ctx.fillStyle="#26435e";
   ctx.fillText("Lectura: de izquierda a derecha · Las flechas representan relaciones, no solo secuencias temporales.",margin,H-47);
   const excluded=allNodes.length-selected.length;
   ctx.font="14px Arial";ctx.fillStyle="#526e80";
-  ctx.fillText("MAC · Academia Movida de SST"+(excluded?" · "+excluded+" hecho(s) sin conexión causal comprobada se documentan por separado.":""),margin,H-23);
+  ctx.fillText("MAC · Academia Movida de SST"+(excluded?" · "+excluded+" hecho(s) fuera de la ruta al hecho final se documentan por separado.":""),margin,H-23);
   return canvas.toDataURL("image/png");
  }catch(e){console.error("No se pudo generar el árbol:",e);return ""}
 }
@@ -585,6 +613,9 @@ function renderReportHtml(options={}){
   const r=legalResult(act);
   return card(act.name,details([["Fecha / hora",r.record.at],["Constancia",r.record.proof],["Fecha / hora límite",legalDeadline(r.end)],["Estado del plazo",r.timing],["Registro de constancia",r.proofLabel],["Aplica",r.applicability]]));
  }).join("");
+ const causalLinks=graphIntegrity().usable;
+ const disjunctions=new Set(causalLinks.filter(e=>e.data.relacion==="disyuncion").map(e=>e.data.source));
+ const branches=[...disjunctions].map(id=>card("Disyunción · "+id,para("Antecedente común",s.facts.find(f=>f.id===id)?.text)+causalLinks.filter(e=>e.data.relacion==="disyuncion"&&e.data.source===id).map(e=>para("Efecto "+e.data.target,s.facts.find(f=>f.id===e.data.target)?.text)).join(""))).join("");
  const treeBlock=forPdf?(image?'<div class="report-tree-note"><strong>Árbol de causas: ver anexo gráfico al final del PDF.</strong><p>La lámina horizontal presenta los antecedentes verificados conectados al acontecimiento final. Los demás hechos permanecen identificados en el expediente.</p></div>':'<p>No hay un árbol exportable: verifica el acontecimiento final, sus antecedentes y los vínculos que los conectan.</p>'):
  '<figure class="report-diagram"><figcaption>Árbol de causas · representación de relaciones comprobadas</figcaption>'+(image?'<img src="'+image+'" alt="Árbol causal estructurado, hechos verificados y flechas hacia el acontecimiento final">':'<p>No hay un árbol exportable: registra y conecta hechos verificados.</p>')+'<p class="report-caption">Se muestran las conexiones con sustento suficiente. Los hechos aislados o pendientes de verificación no se convierten automáticamente en causas.</p></figure>';
  return '<article class="printreport">'+
@@ -595,14 +626,14 @@ function renderReportHtml(options={}){
  section("01","Identificación y descripción del evento",details([["Fecha",s.general.date],["Hora",s.general.time],["Centro / lugar",s.general.place],["Trabajador",s.general.worker],["Cargo",s.general.job],["Consecuencia",s.general.consequence],["Investigador",s.general.investigator],["Rol",s.general.role],["Delegados",s.general.delegates],["Equipo investigador",s.general.team]])+para("Descripción inicial",s.general.description)+para("Actuaciones iniciales",s.general.emergency))+
  section("02","Notificaciones y actuaciones legales",'<div class="report-card-stack">'+legalInfo+'</div>'+para("Observaciones",s.legal.notes)+'<p class="report-caption">Revisar obligaciones y plazos conforme a la LOPCYMAT y su Reglamento Parcial. Los registros de MAC no constituyen notificaciones oficiales.</p>')+
  section("03","Evidencias y reconstrucción cronológica",'<h3>3.1 Inventario y valoración de evidencias</h3><div class="report-card-stack">'+evidence+'</div><h3>3.2 Secuencia temporal documentada</h3><div class="report-card-stack">'+chronology+'</div>')+
- section("04","Hechos y árbol de causas",'<h3>4.1 Hechos contrastados y su trazabilidad</h3><div class="report-card-stack">'+facts+'</div><h3>4.2 Representación del árbol causal</h3>'+treeBlock+'<h3>4.3 Interpretación causal y barreras</h3><div class="report-card-stack">'+analyses+'</div>'+para("Conclusiones causales fundamentadas",s.conclusion)+para("Información pendiente y límites",s.limits))+
+ section("04","Hechos y árbol de causas",'<h3>4.1 Hechos contrastados y su trazabilidad</h3><div class="report-card-stack">'+facts+'</div><h3>4.2 Representación del árbol causal</h3>'+treeBlock+(branches?'<h4>Disyunciones documentadas</h4><p class="report-caption">Se incluyen los efectos de cada antecedente común, incluso los que quedan fuera de la ruta hacia el acontecimiento final.</p>'+branches:'')+'<h3>4.3 Interpretación causal y barreras</h3><div class="report-card-stack">'+analyses+'</div>'+para("Conclusiones causales fundamentadas",s.conclusion)+para("Información pendiente y límites",s.limits))+
  section("05","Medidas preventivas y verificación",'<div class="report-card-stack">'+measures+'</div><p class="report-caption">La ejecución de una acción no equivale a eficacia comprobada. Registrar evidencias de verificación y seguimiento.</p>')+
  section("06","Integridad técnica, referencias y revisión",'<h3>Comprobaciones del expediente</h3>'+(w.length?'<ul class="report-checks">'+w.map(v=>'<li>'+esc(v)+'</li>').join("")+'</ul>':'<p>La comprobación automática no detecta campos esenciales pendientes. Se requiere validación técnica profesional.</p>')+
  '<h3>Referencias de consulta</h3><ul class="report-references">'+[refs.ley,refs.reg,refs.nt,refs.oit].map(x=>'<li>'+esc(x)+'</li>').join("")+'</ul>'+details([["Fecha de revisión",s.reviewDate],["Responsable",s.general.investigator]])+'<p class="report-caption">Instrumento técnico de apoyo, no formulario oficial. La calificación del origen ocupacional corresponde al órgano competente conforme a la LOPCYMAT.</p>')+
  '<div class="report-end">MAC · Método del Árbol de Causas · Academia Movida de SST</div></article>';
 }
 function report(root){pTitle(root,s.isDemo?"Informe de demostración · Caso ficticio":"8. Informe técnico de investigación",s.isDemo?"La investigación de prueba ya está cargada y el informe se genera automáticamente aquí. Puedes recorrer las etapas, exportar a Excel o PDF, o volver al expediente real.":"Revisa integridad, genera el expediente y expórtalo. Los hallazgos son responsabilidad profesional de quien investiga, no conclusiones automáticas.");
-if(s.isDemo){note(root,"Expediente DEMO-AT-2026-001: 11 evidencias, 7 acontecimientos cronológicos, 12 hechos, árbol causal, análisis fundamentado y cuatro medidas. Algunas hipótesis permanecen abiertas deliberadamente; es un ejercicio docente, no un accidente real.");const shortcuts=E("div","row");shortcuts.append(btn("Revisar datos generales",()=>goto(1)));shortcuts.append(btn("Explorar evidencias",()=>goto(3)));shortcuts.append(btn("Ver árbol de causas",()=>goto(5)));shortcuts.append(btn("Ver plan de medidas",()=>goto(7)));shortcuts.append(btn("Volver al expediente real",()=>discardDemo(),"btn danger"));root.append(shortcuts)}
+if(s.isDemo){note(root,"Expediente DEMO-AT-2026-001: 11 evidencias, 7 acontecimientos cronológicos, 14 hechos, árbol causal, análisis fundamentado y cuatro medidas. Algunas hipótesis permanecen abiertas deliberadamente; es un ejercicio docente, no un accidente real.");const shortcuts=E("div","row");shortcuts.append(btn("Revisar datos generales",()=>goto(1)));shortcuts.append(btn("Explorar evidencias",()=>goto(3)));shortcuts.append(btn("Ver árbol de causas",()=>goto(5)));shortcuts.append(btn("Ver plan de medidas",()=>goto(7)));shortcuts.append(btn("Volver al expediente real",()=>discardDemo(),"btn danger"));root.append(shortcuts)}
 const issues=reviewIssues();
 if(issues.length){
  const g=group(root,"Aspectos pendientes ("+issues.length+")"),list=E("ul","review-links");
@@ -749,8 +780,8 @@ formalUnion:{at:"2026-10-21T08:20",proof:"SIM-DECL-SIN · Declaración ficticia 
 notes:"Todas las horas y constancias son ficticias para ejercicios. La aplicación NO notifica a INPSASEL ni sustituye formularios oficiales."};
 d.evidence=[
 {id:"E01",type:"documento",source:"Orden de trabajo OT-135 (simulada)",date:"2026-10-20",description:"Orden de mantenimiento correctivo de transportador L2 emitida a las 08:10.",status:"verificada"},
-{id:"E02",type:"digital",source:"Registro PLC L2 (simulado)",date:"2026-10-20",description:"Registro indica accionamiento de motor entre 08:45 y 09:01.",status:"verificada"},
-{id:"E03",type:"digital",source:"Video del área (simulado)",date:"2026-10-20",description:"A las 08:58 se observa el resguardo abierto; a las 09:00, contacto de la mano con el rodillo durante movimiento.",status:"verificada"},
+{id:"E02",type:"digital",source:"Registro PLC L2 (simulado)",date:"2026-10-20",description:"Registro indica accionamiento de motor entre 08:45 y 09:01; la señal de paro corta el accionamiento.",status:"verificada"},
+{id:"E03",type:"digital",source:"Video del área (simulado)",date:"2026-10-20",description:"A las 08:58 se observa el resguardo abierto; a las 09:00, contacto de la mano con el rodillo en movimiento. Un compañero observa el contacto y acciona el paro de emergencia en respuesta. La cámara también muestra encendida la luz del pasillo contiguo, separado del área del rodillo.",status:"verificada"},
 {id:"E04",type:"documento",source:"Parte de primeros auxilios (simulado)",date:"2026-10-20",description:"Registra lesión de mano y primera atención a las 09:05; no incluye datos clínicos reales.",status:"verificada"},
 {id:"E05",type:"documento",source:"Procedimiento SST-PMT-07 Rev. 04 (simulado)",date:"2026-10-20",description:"Exige aislamiento de energías y verificación antes de intervenir zonas móviles.",status:"verificada"},
 {id:"E06",type:"documento",source:"Autorización AT-223 (simulada)",date:"2026-10-20",description:"Autorización firmada a las 08:50; casilla de verificación de aislamiento sin completar.",status:"verificada"},
@@ -781,14 +812,17 @@ const input=[
 ["H09","La copia de la auditoría examinada no contiene constancia de cierre.","E11","verificado"],
 ["H10","Se accionó la parada de emergencia a las 09:01.","E10","verificado"],
 ["H11","El supervisor suponía que la banda estaba detenida.","E07","pendiente"],
-["H12","No se ejecutó ningún aislamiento de energía.","E07","pendiente"]
+["H12","No se ejecutó ningún aislamiento de energía.","E07","pendiente"],
+["H13","La señal de paro interrumpió el accionamiento del motor.","E02","verificado"],
+["H14","La luz del pasillo contiguo estaba encendida.","E03","verificado"]
 ];
 d.facts=input.map(([id,text,evidenceId,status])=>({id,text,evidenceId,status}));
 d.facts.find(f=>f.id==="H05").additionalEvidenceIds=["E03"];
-const positions={H08:[90,95],H09:[90,210],H07:[90,340],H06:[330,140],H01:[330,330],H02:[555,110],H03:[555,255],H04:[790,180],H05:[1030,180],H10:[790,390]};
+d.facts.find(f=>f.id==="H10").additionalEvidenceIds=["E03"];
+const positions={H08:[90,95],H09:[90,210],H07:[90,340],H06:[330,140],H01:[330,330],H02:[555,110],H03:[555,255],H04:[790,180],H05:[1030,180],H10:[1030,390],H13:[1270,390],H14:[1270,95]};
 d.diagram.cytoscape=Object.entries(positions).map(([id,[x,y]])=>({group:"nodes",data:{id,label:d.facts.find(f=>f.id===id).text},position:{x,y}}));
-const conns=[["H02","H04","conjuncion"],["H03","H04","conjuncion"],["H04","H05","cadena"]];
-conns.forEach(([source,target,relacion],i)=>d.diagram.cytoscape.push({group:"edges",data:{id:"R0"+(i+1),source,target,relacion,relacionTexto:relacion==="conjuncion"?"conjunción":""}}));
+const conns=[["H02","H04","conjuncion"],["H03","H04","conjuncion"],["H04","H05","disyuncion"],["H04","H10","disyuncion"],["H10","H13","cadena"]];
+conns.forEach(([source,target,relacion],i)=>d.diagram.cytoscape.push({group:"edges",data:{id:"R0"+(i+1),source,target,relacion,relacionTexto:relationText(relacion)}}));
 d.diagram.final="H05";
 d.analyses={
 H02:{classification:"inmediata",certainty:"sustentado",why:"E02 muestra energía del motor mientras se realizaba intervención; se vincula con H04. Corroborar su consistencia temporal con E03.",barrier:"Aislamiento de energía no confirmado con observación directa."},
@@ -799,7 +833,8 @@ H06:{classification:"basica",certainty:"sustentado",why:"E06 acredita una verifi
 H07:{classification:"no_causal",certainty:"sustentado",why:"E05 documenta lo establecido en el procedimiento; su existencia no demuestra cumplimiento.",barrier:"Procedimiento preventivo establecido, eficacia de aplicación por revisar."},
 H08:{classification:"raiz",certainty:"hipotesis",why:"La auditoría E11 respalda antecedentes de verificaciones incompletas; se debe investigar el sistema de cierre, supervisión y autorizaciones antes de confirmar una causa raíz.",barrier:"Seguimiento de no conformidades y verificación de aislamiento potencialmente insuficientes."},
 H09:{classification:"contribuyente",certainty:"pendiente",why:"No disponer de constancia en una copia NO equivale a demostrar que jamás se cerró la acción.",barrier:"Solicitar trazabilidad completa del plan de acciones."},
-H10:{classification:"no_causal",certainty:"sustentado",why:"Respuesta posterior al accidente, relevante para mitigación.",barrier:"Barrera de parada de emergencia actuó, pero no evitó el contacto."}
+H10:{classification:"no_causal",certainty:"sustentado",why:"Respuesta posterior al accidente, relevante para mitigación.",barrier:"Barrera de parada de emergencia actuó, pero no evitó el contacto."},
+H14:{classification:"no_causal",certainty:"sustentado",why:"Hecho de contexto en el pasillo contiguo. En este ejemplo es independiente del contacto con el rodillo y se representa sin flechas.",barrier:""}
 };
 d.conclusion="En este CASO SIMULADO, el contacto de la mano con un rodillo en movimiento se relacionó con la accesibilidad de la zona de atrapamiento y la presencia de energía durante la intervención (E02–E04). La autorización de trabajo presentaba una verificación incompleta de aislamiento (E06). Se investigan posibles deficiencias sistémicas de autorización y seguimiento (E11); NO se consideran causas raíz demostradas hasta validar esos antecedentes.";
 d.limits="Pendiente contrastar E07 y E08; verificar cómo se ejecutó el aislamiento real, condiciones de interbloqueo, evidencia de puesta en cero y estado de cierre de observaciones de la auditoría anterior. El caso no constituye un expediente real ni un diagnóstico de origen ocupacional.";
@@ -857,7 +892,7 @@ const nodeRows=rows("NODOS_ARBOL").slice(1),edgeRows=rows("RELACIONES").slice(1)
 const nodeIds=new Set(),factIds=new Set(obj.facts.map(x=>x.id));
 if(factIds.size!==obj.facts.length)throw Error("Hay ID duplicados en HECHOS.");
 obj.diagram.cytoscape=nodeRows.filter(row=>row.some(x=>x)).map((row,i)=>{const id=row[0];if(!id||nodeIds.has(id)||!factIds.has(id))throw Error("Nodo del árbol sin ID único que corresponda a un hecho: fila "+(i+2));nodeIds.add(id);if(String(row[4]||"").toUpperCase()==="SI"){if(obj.diagram.final)throw Error("Solo puede haber un suceso final.");obj.diagram.final=id}return {group:"nodes",data:{id,label:obj.facts.find(f=>f.id===id).text},position:{x:Number(row[2])||0,y:Number(row[3])||0}}});
-const relIds=new Set();for(const [i,row] of edgeRows.entries()){if(!row.some(x=>x))continue;const id=row[0]||ident(),from=row[1],to=row[2],relacion=row[3]||"cadena";if(relIds.has(id)||nodeIds.has(id)||!nodeIds.has(from)||!nodeIds.has(to)||from===to)throw Error("Relación inválida en RELACIONES, fila "+(i+2));relIds.add(id);obj.diagram.cytoscape.push({group:"edges",data:{id,source:from,target:to,relacion,relacionTexto:relacion==="conjuncion"?"conjunción":""}})}
+const relIds=new Set();for(const [i,row] of edgeRows.entries()){if(!row.some(x=>x))continue;const id=row[0]||ident(),from=row[1],to=row[2],relacion=row[3]||"cadena";if(relIds.has(id)||nodeIds.has(id)||!nodeIds.has(from)||!nodeIds.has(to)||from===to)throw Error("Relación inválida en RELACIONES, fila "+(i+2));relIds.add(id);obj.diagram.cytoscape.push({group:"edges",data:{id,source:from,target:to,relacion,relacionTexto:relationText(relacion)}})}
 const adjacent=new Map();obj.diagram.cytoscape.filter(x=>x.group==="edges").forEach(e=>{if(!adjacent.has(e.data.source))adjacent.set(e.data.source,[]);adjacent.get(e.data.source).push(e.data.target)});const seen=new Set(),stack=new Set();function visit(n){if(stack.has(n))throw Error("El árbol contiene un ciclo causal; revisa RELACIONES.");if(seen.has(n))return;stack.add(n);for(const m of adjacent.get(n)||[])visit(m);stack.delete(n);seen.add(n)}for(const n of nodeIds)visit(n);
 for(const row of rows("ANALISIS").slice(1)){if(!row[0])continue;if(!factIds.has(row[0]))throw Error("ANALISIS contiene un ID de hecho desconocido: "+row[0]);obj.analyses[row[0]]={classification:row[1]||"sin_clasificar",certainty:row[2]||"pendiente",why:row[3]||"",barrier:row[4]||""}}
 const endings=Object.fromEntries(rows("CONCLUSIONES").slice(1).map(row=>[row[0],row[1]||""]));obj.conclusion=endings["Conclusiones"]||"";obj.limits=endings["Limitaciones / información faltante"]||"";obj.reviewDate=endings["Fecha de revisión"]||"";
@@ -884,7 +919,7 @@ return obj}
 function validateImportedState(obj){
  const choices={evidence:{type:["documento","testimonio","fisica","fotografia","digital","otra"],status:["pendiente","verificada","contradictoria"]},facts:{status:["pendiente","verificado","descartado"]},actions:{type:["inmediata","correctiva","preventiva"],status:["pendiente","en_curso","ejecutada","eficaz","ineficaz"]}};
  for(const name of ["evidence","timeline","facts","actions"]){const ids=new Set();for(const row of obj[name]){if(!/^[a-zA-Z0-9_-]{1,100}$/.test(row.id)||ids.has(row.id))throw Error("ID inválido o duplicado en "+name);ids.add(row.id);for(const [key,values]of Object.entries(choices[name]||{}))if(!values.includes(row[key]))throw Error("Valor inválido en "+name+": "+key)}}
- for(const e of obj.diagram.cytoscape.filter(e=>e.group==="edges"))if(!["cadena","conjuncion"].includes(e.data.relacion))throw Error("Tipo de relación no válido");
+ for(const e of obj.diagram.cytoscape.filter(e=>e.group==="edges"))if(!Object.hasOwn(relationNames,e.data.relacion))throw Error("Tipo de relación no válido");
  for(const a of Object.values(obj.analyses)){if(!["sin_clasificar","inmediata","basica","raiz","contribuyente","no_causal"].includes(a.classification)||!["pendiente","sustentado","hipotesis"].includes(a.certainty))throw Error("Clasificación o sustento no válido en ANALISIS")}
  if(obj.legal.union.applies&&!['si','no','por_confirmar'].includes(obj.legal.union.applies))throw Error("Aplicabilidad sindical inválida");
 }

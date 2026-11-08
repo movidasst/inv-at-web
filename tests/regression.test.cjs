@@ -16,7 +16,7 @@ function harness(){
  vm.runInNewContext(source,sandbox);
  return {api:window.audit,window,labels,memory,localStorage,elements};
 }
-test('demo Excel roundtrip retains facts, graph and measures',()=>{const {api}=harness();const result=api.workbookToState(api.buildWorkbook(api.demo()));assert.equal(result.facts.length,12);assert.equal(result.diagram.cytoscape.length,13);assert.equal(result.actions.length,4)});
+test('demo Excel roundtrip retains facts, graph and measures',()=>{const {api}=harness();const result=api.workbookToState(api.buildWorkbook(api.demo()));assert.equal(result.facts.length,14);assert.equal(result.diagram.cytoscape.length,17);assert.equal(result.actions.length,4)});
 test('replacement destroys old graph before saving imported state',async()=>{const {api}=harness();await api.configure();const incoming=api.demo();let destroyed=false;api.setCy({destroy:()=>{destroyed=true},elements:()=>({jsons:()=>[{data:{id:'OLD'}}]})});api.switchWithoutRender(incoming);await api.save();assert.ok(destroyed);assert.equal(api.getState().diagram.cytoscape[0].data.id,'H08')});
 test('pending facts never get a verified tree image',()=>{const {api,labels}=harness();const data=api.demo();data.facts.forEach(f=>f.status='pendiente');api.setState(data);assert.equal(api.captureDiagram(),'');assert.equal(labels.filter(t=>t.includes('HECHO VERIFICADO')).length,0);assert.ok(api.warnings().some(w=>w.includes('Nodo sin hecho verificado')))});
 test('missing final is warned and never guessed',()=>{const {api}=harness();const data=api.demo();data.diagram.final='DELETED';api.setState(data);assert.ok(api.warnings().some(w=>w.includes('no existe')));assert.equal(api.captureDiagram(),'')});
@@ -181,4 +181,25 @@ test('legacy workbooks remain readable and invalid supplementary evidence links 
   const book=api.buildWorkbook(api.demo());book.Sheets.RESPALDOS_HECHO.rows.push(row);
   assert.throws(()=>api.workbookToState(book),error);
  }
+});
+
+test('disjunction roundtrips and reports both verified effects without connecting the independent fact',()=>{
+ const {api,labels}=harness(),data=api.workbookToState(api.buildWorkbook(api.demo()));
+ api.setState(data);
+ const disjunction=data.diagram.cytoscape.filter(e=>e.data.relacion==='disyuncion');
+ assert.deepEqual(Array.from(disjunction,e=>[e.data.source,e.data.target]),[['H04','H05'],['H04','H10']]);
+ assert.ok(data.diagram.cytoscape.every(e=>e.data.source!=='H14'&&e.data.target!=='H14'));
+ assert.match(api.renderReportHtml({forPdf:true}),/Disyunción · H04[\s\S]*Efecto H05[\s\S]*Efecto H10/);
+ assert.ok(labels.includes('DISYUNCIÓN · VER DETALLE EN INFORME'));
+});
+test('a disjunction is pending when an effect is missing or has another recorded antecedent',()=>{
+ const {api}=harness(),data=api.demo();
+ api.setState(data);
+ const edges=data.diagram.cytoscape;
+ edges.push({group:'edges',data:{id:'EXTRA',source:'H01',target:'H10',relacion:'cadena'}});
+ assert.ok(api.warnings().some(w=>w.includes('Disyunción por revisar')));
+ edges.pop();
+ data.diagram.cytoscape=edges.filter(e=>!(e.data.relacion==='disyuncion'&&e.data.target==='H10'));
+ assert.ok(api.warnings().some(w=>w.includes('Disyunción por revisar')));
+ assert.doesNotMatch(api.renderReportHtml({forPdf:true}),/Disyunciones documentadas/);
 });
