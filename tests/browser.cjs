@@ -11,7 +11,7 @@ const {chromium}=require('playwright');
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  let browser;
  try{
- browser=await chromium.launch({headless:true,...(process.env.MAC_BROWSER_CHANNEL?{channel:process.env.MAC_BROWSER_CHANNEL}:{})});
+ browser=await chromium.launch({headless:true,executablePath:process.env.MAC_BROWSER_EXECUTABLE,...(process.env.MAC_BROWSER_CHANNEL?{channel:process.env.MAC_BROWSER_CHANNEL}:{})});
  const page=await browser.newPage({acceptDownloads:true,viewport:{width:1366,height:900}}),errors=[];
  page.on('pageerror',error=>errors.push(error.message));
  await page.route('**/*analytics.js*',route=>route.fulfill({body:'',contentType:'text/javascript'}));
@@ -29,6 +29,12 @@ const {chromium}=require('playwright');
  await page.getByRole('button',{name:'Ver informe de demostración',exact:true}).click();
  await page.waitForSelector('#reportPreview .printreport');await page.waitForFunction(()=>Boolean(window.XLSX?.writeFile));
  assert.ok(await page.locator('#reportPreview .report-card').count()>25);
+ const index=page.getByRole('navigation',{name:'Índice del informe'});
+ assert.equal(await index.getByRole('link').count(),6);
+ await index.getByRole('link',{name:/Hechos y árbol/}).press('Enter');
+ assert.equal(await page.locator('#report-section-04 > h2').evaluate(el=>document.activeElement===el),true);
+ await page.locator('.report-brand img').evaluate(el=>el.decode());
+
  await page.screenshot({path:path.join(artifacts,'report.png'),fullPage:true});
  const pdfPromise=page.waitForEvent('download');await page.getByRole('button',{name:'Descargar PDF',exact:true}).click();await(await pdfPromise).saveAs(path.join(artifacts,'demo.pdf'));
  const excelPromise=page.waitForEvent('download');await page.locator('#export').click();await(await excelPromise).saveAs(path.join(artifacts,'demo.xlsx'));
@@ -74,6 +80,9 @@ const {chromium}=require('playwright');
  // PDF pagination must retain a long company field including its last marker.
  const longBook=await page.evaluate(async()=>{const b=XLSX.read(await(await fetch('/test-artifacts/demo.xlsx')).arrayBuffer(),{type:'array'}),rows=XLSX.utils.sheet_to_json(b.Sheets.GENERAL,{header:1,defval:''});rows.find(r=>r[0]==='Empresa / entidad')[1]='Empresa '+('contenido extenso '.repeat(1300))+' MARCADOR_FINAL_EMPRESA';b.Sheets.GENERAL=XLSX.utils.aoa_to_sheet(rows);return Array.from(new Uint8Array(XLSX.write(b,{type:'array',bookType:'xlsx'})))});
  await page.locator('#import').setInputFiles({name:'long.xlsx',buffer:Buffer.from(longBook),mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});await page.waitForSelector('#reportPreview');
+ await page.getByRole('button',{name:'1. Identificación',exact:true}).click();
+ await page.getByLabel('Código interno',{exact:true}).fill('REF_'+('EXPEDIENTE_'.repeat(40))+'FINAL_CODIGO');
+ await page.getByRole('button',{name:'8. Informe técnico',exact:true}).click();
  const longPromise=page.waitForEvent('download');await page.getByRole('button',{name:'Descargar PDF',exact:true}).click();await(await longPromise).saveAs(path.join(artifacts,'long.pdf'));
  await page.waitForFunction(()=>document.getElementById('saved').textContent.includes('Guardado cifrado'));
  const storage=await page.evaluate(()=>({disk:localStorage.getItem('mac-ve-v3-member-'+'b'.repeat(64)+':demo'),session:sessionStorage.getItem('movida-sst-mac-session')}));assert.equal(JSON.parse(storage.disk).encrypted,1);assert.ok(!storage.disk.includes('MARCADOR_FINAL'));assert.deepEqual(JSON.parse(storage.session),{token:valid.token});

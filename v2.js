@@ -581,7 +581,7 @@ function captureDiagram(){
    b.lines.forEach((line,i)=>ctx.fillText(line,p.x+17,p.y+58+i*lineHeight));
   }
   const conjunctions=new Set(links.filter(e=>e.data.relacion==="conjuncion").map(e=>e.data.target));
-  if(conjunctions.size){for(const id of conjunctions){const b=positions.get(id);if(!b)continue;ctx.fillStyle="#006b76";ctx.font="bold 14px Arial";ctx.textAlign="right";ctx.fillText("CONJUNCIÓN",b.x-16,b.y-11)}}
+  if(conjunctions.size){for(const id of conjunctions){const b=positions.get(id);if(!b)continue;ctx.fillStyle="#006b76";ctx.font="bold 14px Arial";ctx.textAlign="left";ctx.fillText("CONJUNCIÓN",b.x,b.y-11)}}
   for(const id of new Set(links.filter(e=>e.data.relacion==="disyuncion").map(e=>e.data.source))){
    const b=positions.get(id);
    ctx.fillStyle="#006b76";ctx.font="bold 14px Arial";ctx.textAlign="left";
@@ -597,13 +597,13 @@ function captureDiagram(){
  }catch(e){console.error("No se pudo generar el árbol:",e);return ""}
 }
 function renderReportHtml(options={}){
- const forPdf=Boolean(options.forPdf), image=captureDiagram(), w=warnings();
+ const forPdf=Boolean(options.forPdf), image=options.image??captureDiagram(), w=warnings();
  const value=x=>esc(String(x??"").trim()||"No consta");
  const field=(label,text)=>'<div class="report-field"><span class="report-field-label">'+esc(label)+'</span><span class="report-field-value">'+value(text)+'</span></div>';
  const details=(fields)=>'<div class="report-fields">'+fields.map(x=>field(x[0],x[1])).join("")+'</div>';
  const card=(title,body,subtitle="")=>'<div class="report-card"><div class="report-card-heading"><strong>'+esc(title)+'</strong>'+(subtitle?'<span>'+esc(subtitle)+'</span>':"")+'</div>'+body+'</div>';
  const para=(label,text)=>'<p class="report-paragraph"><strong>'+esc(label)+':</strong> '+value(text)+'</p>';
- const section=(n,title,content)=>'<section class="report-section"><h2><span class="report-section-number">'+n+'</span>'+esc(title)+'</h2>'+content+'</section>';
+ const section=(n,title,content)=>'<section class="report-section" id="report-section-'+n+'"><h2><span class="report-section-number">'+n+'</span>'+esc(title)+'</h2>'+content+'</section>';
  const evidence=s.evidence.map((e,i)=>card(e.id+" · "+(e.source||"Evidencia"),details([["Tipo",e.type],["Fecha",e.date],["Estado",e.status]])+para("Descripción y alcance",e.description))).join("")||'<p>No se han registrado evidencias.</p>';
  const chronology=s.timeline.map((t,i)=>card(t.id+" · "+(t.when||"Momento sin consignar"),para("Acontecimiento",t.text)+para("Respaldo",t.source))).join("")||'<p>No consta cronología.</p>';
  const facts=s.facts.map((f,i)=>card(f.id+(f.id===s.diagram.final?" · ACONTECIMIENTO FINAL":""),para("Hecho",f.text)+details([ ["Estado",f.status==="verificado"&&!factSupported(f)?"Por revisar · sustento insuficiente":f.status],["Evidencias vinculadas",factEvidenceIds(f).map(id=>{const e=s.evidence.find(ev=>ev.id===id);return e?evidenceLabel(e):id+" · Referencia no encontrada"}).join("\n")||"Sin evidencias vinculadas"]]))).join("")||'<p>No constan hechos.</p>';
@@ -620,7 +620,7 @@ function renderReportHtml(options={}){
  const treeBlock=forPdf?(image?'<div class="report-tree-note"><strong>Árbol de causas: ver anexo gráfico al final del PDF.</strong><p>La lámina horizontal presenta los antecedentes verificados conectados al acontecimiento final. Los demás hechos permanecen identificados en el expediente.</p></div>':'<p>No hay un árbol exportable: verifica el acontecimiento final, sus antecedentes y los vínculos que los conectan.</p>'):
  '<figure class="report-diagram"><figcaption>Árbol de causas · representación de relaciones comprobadas</figcaption>'+(image?'<img src="'+image+'" alt="Árbol causal estructurado, hechos verificados y flechas hacia el acontecimiento final">':'<p>No hay un árbol exportable: registra y conecta hechos verificados.</p>')+'<p class="report-caption">Se muestran las conexiones con sustento suficiente. Los hechos aislados o pendientes de verificación no se convierten automáticamente en causas.</p></figure>';
  return '<article class="printreport">'+
- '<header class="report-cover"><div class="report-brand">ACADEMIA MOVIDA DE SST <span>MAC · INVESTIGACIÓN TÉCNICA</span></div><div class="report-cover-body"><span class="report-eyebrow">INFORME TÉCNICO DE INVESTIGACIÓN</span><h1>Accidente de trabajo</h1><p class="report-subtitle">Método del Árbol de Causas · Evidencias, causalidad, barreras y prevención</p>'+
+ '<header class="report-cover"><div class="report-brand"><img src="assets/mac-logo-horizontal.jpg" alt="La Movida de SST Plus" width="540" height="180"><span>MAC · INVESTIGACIÓN TÉCNICA</span></div><div class="report-cover-body"><span class="report-eyebrow">INFORME TÉCNICO DE INVESTIGACIÓN</span><h1>Accidente de trabajo</h1><p class="report-subtitle">Método del Árbol de Causas · Evidencias, causalidad, barreras y prevención</p>'+
  details([["Código de expediente",s.general.code],["Entidad",s.general.company],["Fecha del evento",s.general.date],["Lugar",s.general.place]])+
  '</div><div class="report-cover-foot">La Movida de SST · De la Reacción a la Prevención · www.movidasst.com</div></header>'+
  (s.isDemo?'<div class="report-demo-watermark"><strong>CASO FICTICIO · DEMOSTRACIÓN ACADÉMICA</strong><p>Este documento es material didáctico. No corresponde a un accidente real, no contiene comunicaciones oficiales y no acredita cumplimiento normativo.</p></div>':"")+
@@ -647,27 +647,56 @@ if(issues.length){
 }else note(root,"La revisión automática no encontró datos esenciales faltantes. Verifica de todos modos el fundamento y la calidad técnica.");
 const bar=E("div","row");bar.append(btn("Actualizar vista previa",()=>preview()));bar.append(btn("Descargar PDF",()=>downloadPDF(),"btn"));bar.append(btn("Imprimir",()=>window.print()));root.append(bar);
 const prev=E("div","item");prev.id="reportPreview";prev.style.marginTop="15px";root.append(prev);preview();
-function preview(){prev.innerHTML=renderReportHtml()}
-function downloadPDF(){
+function preview(){
+ prev.innerHTML=renderReportHtml();
+ const nav=E("nav","report-index");nav.setAttribute("aria-label","Índice del informe");
+ for(const heading of prev.querySelectorAll(".report-section > h2")){
+  heading.tabIndex=-1;
+  const anchor=E("a","",heading.textContent.slice(0,2)+" · "+heading.textContent.slice(2));
+  anchor.href="#"+heading.parentElement.id;
+  anchor.onclick=event=>{event.preventDefault();heading.focus()};
+  nav.append(anchor);
+ }
+ prev.prepend(nav);
+}
+async function downloadPDF(){
  if(typeof window.html2pdf!=="function"){alert("La biblioteca PDF no está disponible. Comprueba tu conexión.");return}
- const btnPDF=Array.from(document.querySelectorAll("#stage button")).find(b=>b.textContent==="Descargar PDF");
- const filename="MAC_Informe_"+String(s.general.code||"investigacion").replace(/[^a-zA-Z0-9_-]/g,"_")+".pdf";
- const dummy=document.createElement("div");dummy.style.cssText="position:absolute;left:0;top:0;width:4px;height:4px;z-index:-1";dummy.textContent=" ";document.body.append(dummy);
- if(btnPDF){btnPDF.disabled=true;btnPDF.textContent="Generando PDF…"}
- window.html2pdf().set({margin:0,image:{type:"jpeg",quality:.8},html2canvas:{scale:1},jsPDF:{unit:"mm",format:"a4",orientation:"portrait",compress:true}})
- .from(dummy).toPdf().get("pdf").then(pdf=>{
-  const html=document.createElement("div");html.innerHTML=renderReportHtml({forPdf:true});
-  const article=html.querySelector(".printreport");
+ const button=[...document.querySelectorAll("#stage button")].find(b=>b.textContent==="Descargar PDF");
+ const code=s.general.code||"",isDemo=s.isDemo;
+ const filename="MAC_Informe_"+(code||"investigacion").replace(/[^a-zA-Z0-9_-]/g,"_").slice(0,80)+".pdf";
+ const tree=captureDiagram(), html=document.createElement("div");
+ html.innerHTML=renderReportHtml({forPdf:true,image:tree});
+ const article=html.querySelector(".printreport");
+ const dummy=document.createElement("div");
+ dummy.style.cssText="position:absolute;left:0;top:0;width:4px;height:4px;z-index:-1";
+ dummy.textContent=" ";document.body.append(dummy);
+ if(button){button.disabled=true;button.textContent="Generando PDF…"}
+ try{
+  const [pdf,logo]=await Promise.all([
+   window.html2pdf().set({margin:0,html2canvas:{scale:1},jsPDF:{unit:"mm",format:"a4",orientation:"portrait",compress:true}}).from(dummy).toPdf().get("pdf"),
+   fetch("assets/mac-logo-horizontal.jpg").then(r=>r.ok?r.arrayBuffer():null).then(bytes=>bytes&&new Uint8Array(bytes)).catch(()=>null)
+  ]);
+  writeReportPdf(pdf,article,{tree,code,isDemo,logo});
+  pdf.save(filename);
+ }catch(e){console.error("Error generando PDF",e);alert("No se pudo generar el PDF; vuelve a intentarlo.")}
+ finally{dummy.remove();if(button){button.disabled=false;button.textContent="Descargar PDF"}}
+}
+function writeReportPdf(pdf,article,{tree,code,isDemo,logo}){
   const L=15,R=195,B=277,W=R-L;
   let y=18;
   const norm=v=>String(v??"").replace(/[\u2013\u2014]/g,"-").replace(/\u2192/g,"->").replace(/[\u2018\u2019]/g,"'").replace(/[\u201c\u201d]/g,'"').replace(/\s+/g," ").replace(/[^\x20-\xFF]/g,"").trim();
   const value=v=>norm(v)||"No consta";
+  const fit=(v,w)=>{
+   const text=value(v);
+   return pdf.getTextWidth(text)<=w?text:pdf.splitTextToSize(text,w-5)[0]+"...";
+  };
   const ink=()=>pdf.setTextColor(30,50,73);
   const nextPage=()=>{pdf.addPage("a4","portrait");y=18;pdf.setTextColor(0,32,91);pdf.setFont("helvetica","bold");pdf.setFontSize(9);pdf.text("MAC / CONTINUACIÓN DEL INFORME",L,y);y+=10};
   const need=h=>{if(y+h>B)nextPage()};
-  const wrap=(v,w,size=9.3)=>{pdf.setFont("helvetica","normal");pdf.setFontSize(size);return pdf.splitTextToSize(value(v),w)};
+  const wrap=(v,w,size=9.3,style="normal")=>{pdf.setFont("helvetica",style);pdf.setFontSize(size);return pdf.splitTextToSize(value(v),w)};
   const drawText=(v,x=L,w=W,size=9.3,lh=4.7)=>{
-   for(const line of wrap(v,w,size)){need(lh+1);ink();pdf.setFont("helvetica","normal");pdf.setFontSize(size);pdf.text(line,x,y);y+=lh}
+   const lines=String(v??"").split(/\r?\n/).flatMap(line=>wrap(line,w,size));
+   for(const line of lines){need(lh+1);ink();pdf.setFont("helvetica","normal");pdf.setFontSize(size);pdf.text(line,x,y);y+=lh}
   };
   const heading=(number,title)=>{
    need(23);y+=3;pdf.setFillColor(0,123,133);pdf.roundedRect(L,y-4,12,11,2,2,"F");
@@ -677,7 +706,13 @@ function downloadPDF(){
    for(const line of lines){pdf.text(line,L+18,y+3);y+=5.5}
    pdf.setDrawColor(183,216,219);pdf.line(L,y+3,R,y+3);y+=11;
   };
-  const subtitle=t=>{need(14);y+=4;pdf.setTextColor(0,123,133);pdf.setFont("helvetica","bold");pdf.setFontSize(10.3);pdf.text(norm(t),L,y);y+=9};
+  const subtitle=t=>{
+   need(20);y+=4;
+   for(const line of wrap(t,W,10.3,"bold")){
+    need(11);pdf.setTextColor(0,123,133);pdf.setFont("helvetica","bold");pdf.setFontSize(10.3);pdf.text(line,L,y);y+=5.2;
+   }
+   y+=4;
+  };
   const paragraph=(label,body)=>{
    need(11);pdf.setTextColor(0,32,91);pdf.setFont("helvetica","bold");pdf.setFontSize(9.3);pdf.text(norm(label).replace(/:$/,"")+":",L,y);y+=5;
    drawText(body,L+2,W-4,9.2,4.6);y+=5;
@@ -704,15 +739,17 @@ function downloadPDF(){
    const title=el.querySelector(".report-card-heading strong")?.textContent||"Registro";
    const fields=[...el.querySelectorAll(".report-field")];
    const paras=[...el.querySelectorAll(".report-paragraph")];
-   const titleLines=wrap(title,W-10,10);
+   const titleLines=wrap(title,W-10,10,"bold");
    let est=9+titleLines.length*5.2;
    fields.forEach(f=>est+=7+wrap(f.querySelector(".report-field-value")?.textContent,W-7,9.1).length*4.4);
    paras.forEach(p=>est+=10+wrap(p.textContent,W-7,9.1).length*4.4);
    if(est<240)need(est+1);else need(20);
-   pdf.setFillColor(231,245,246);pdf.roundedRect(L,y-4,W,5+titleLines.length*5,1.2,1.2,"F");
-   pdf.setFillColor(0,123,133);pdf.rect(L,y-4,1.8,5+titleLines.length*5,"F");
-   pdf.setTextColor(0,32,91);pdf.setFont("helvetica","bold");pdf.setFontSize(10);
-   titleLines.forEach(line=>{need(6);pdf.text(line,L+4,y);y+=5});y+=5;
+   titleLines.forEach(line=>{
+    need(9);pdf.setFillColor(231,245,246);pdf.rect(L,y-4,W,5,"F");
+    pdf.setFillColor(0,123,133);pdf.rect(L,y-4,1.8,5,"F");
+    pdf.setTextColor(0,32,91);pdf.setFont("helvetica","bold");pdf.setFontSize(10);
+    pdf.text(line,L+4,y);y+=5;
+   });y+=5;
    for(const element of el.children){
     if(element.matches(".report-fields"))for(const f of element.querySelectorAll(".report-field")){const label=f.querySelector(".report-field-label")?.textContent||"Dato";const val=f.querySelector(".report-field-value")?.textContent||"";paragraph(label,val)}
     if(element.matches(".report-paragraph")){const label=element.querySelector("strong")?.textContent||"Detalle";paragraph(label,element.textContent.slice(label.length))}
@@ -723,7 +760,7 @@ function downloadPDF(){
    if(!el||el.nodeType!==1)return;
    if(el.matches(".report-card")){record(el);return}
    if(el.matches(".report-fields")){gridFields(el.querySelectorAll(".report-field"));return}
-   if(el.matches("h3")){subtitle(el.textContent);return}
+   if(el.matches("h3,h4")){subtitle(el.textContent);return}
    if(el.matches(".report-paragraph")){const k=el.querySelector("strong")?.textContent||"Detalle";paragraph(k,el.textContent.slice(k.length));return}
    if(el.matches(".report-tree-note")){paragraph("Árbol de causas",el.textContent);return}
    if(el.matches(".report-caption")){drawText(el.textContent,L,W,8.3,4.2);y+=6;return}
@@ -734,24 +771,29 @@ function downloadPDF(){
   }
   // Portada vectorial, sin imágenes de páginas ni desplazamientos horizontales.
   pdf.setFillColor(0,32,91);pdf.rect(0,0,210,30,"F");
-  pdf.setTextColor(255,255,255);pdf.setFont("helvetica","bold");pdf.setFontSize(14);pdf.text("ACADEMIA MOVIDA DE SST",L,17);
+  if(logo){
+   pdf.setFillColor(255,255,255);pdf.roundedRect(L,4,70,22,2,2,"F");
+   pdf.addImage(logo,"JPEG",L+5,5,60,20);
+  }else{
+   pdf.setTextColor(255,255,255);pdf.setFont("helvetica","bold");pdf.setFontSize(14);pdf.text("ACADEMIA MOVIDA DE SST",L,17);
+  }
+  pdf.setTextColor(255,255,255);pdf.setFont("helvetica","bold");
   pdf.setFontSize(8);pdf.text("MAC / ÁRBOL DE CAUSAS",R,17,{align:"right"});
   y=45;pdf.setTextColor(0,123,133);pdf.setFont("helvetica","bold");pdf.setFontSize(9);pdf.text("INFORME TÉCNICO DE INVESTIGACIÓN",L,y);
   y+=12;pdf.setTextColor(0,32,91);pdf.setFont("helvetica","bold");pdf.setFontSize(22);pdf.text("Accidente de trabajo",L,y);y+=10;
   drawText("Método del Árbol de Causas. Evidencias, causalidad, barreras y prevención",L,W,10,5);y+=6;
   const coverFields=article.querySelectorAll(".report-cover .report-field");gridFields(coverFields);
-  if(s.isDemo){need(25);pdf.setFillColor(255,247,224);pdf.roundedRect(L,y,W,20,2,2,"F");pdf.setTextColor(83,64,22);pdf.setFont("helvetica","bold");pdf.setFontSize(10);pdf.text("CASO FICTICIO / DEMOSTRACIÓN ACADÉMICA",L+4,y+7);pdf.setFont("helvetica","normal");pdf.setFontSize(8.5);pdf.text("Material didáctico sin validez oficial ni correspondencia con un accidente real.",L+4,y+14);y+=27}
+  if(isDemo){need(25);pdf.setFillColor(255,247,224);pdf.roundedRect(L,y,W,20,2,2,"F");pdf.setTextColor(83,64,22);pdf.setFont("helvetica","bold");pdf.setFontSize(10);pdf.text("CASO FICTICIO / DEMOSTRACIÓN ACADÉMICA",L+4,y+7);pdf.setFont("helvetica","normal");pdf.setFontSize(8.5);pdf.text("Material didáctico sin validez oficial ni correspondencia con un accidente real.",L+4,y+14);y+=27}
   for(const section of article.querySelectorAll(":scope > .report-section")){
    heading(section.querySelector(".report-section-number")?.textContent||"",section.querySelector("h2")?.textContent.replace(/^\s*\d{2}\s*/,"")||"Sección");
    for(const child of section.children){if(child.tagName==="H2")continue;visit(child)}
   }
-  const tree=captureDiagram();
   if(tree){
    pdf.addPage("a4","landscape");
    const pw=pdf.internal.pageSize.getWidth(),ph=pdf.internal.pageSize.getHeight();
    pdf.setFillColor(0,32,91);pdf.rect(0,0,pw,30,"F");pdf.setTextColor(255,255,255);
    pdf.setFont("helvetica","bold");pdf.setFontSize(17);pdf.text("ANEXO GRÁFICO / ÁRBOL DE CAUSAS",14,17);
-   pdf.setFont("helvetica","normal");pdf.setFontSize(9);pdf.text(value(s.general.code||"Investigación"),pw-14,17,{align:"right"});
+   pdf.setFont("helvetica","normal");pdf.setFontSize(9);pdf.text(fit(code||"Investigación",110),pw-14,17,{align:"right"});
    const props=pdf.getImageProperties(tree),scale=Math.min((pw-26)/props.width,(ph-47)/props.height);
    const iw=props.width*scale,ih=props.height*scale;
    pdf.addImage(tree,"PNG",(pw-iw)/2,33+(ph-47-ih)/2,iw,ih,undefined,"FAST");
@@ -759,12 +801,9 @@ function downloadPDF(){
   const n=pdf.getNumberOfPages();
   for(let i=1;i<=n;i++){pdf.setPage(i);const pw=pdf.internal.pageSize.getWidth(),ph=pdf.internal.pageSize.getHeight();
    pdf.setTextColor(96,114,127);pdf.setFont("helvetica","normal");pdf.setFontSize(8);
-   pdf.text("MAC · Academia Movida de SST · "+(s.isDemo?"CASO FICTICIO · ":"")+value(s.general.code||"Sin código"),12,ph-8);
+   pdf.text(fit("MAC · Academia Movida de SST · "+(isDemo?"CASO FICTICIO · ":"")+value(code||"Sin código"),pw-44),12,ph-8);
    pdf.text(i+" / "+n,pw-12,ph-8,{align:"right"});
   }
-  pdf.save(filename);
- }).catch(e=>{console.error("Error generando PDF",e);alert("No se pudo generar el PDF; vuelve a intentarlo.");})
- .finally(()=>{dummy.remove();if(btnPDF){btnPDF.disabled=false;btnPDF.textContent="Descargar PDF"}});
 }
 }
 function demo(){

@@ -14,7 +14,7 @@ const {pathToFileURL}=require('node:url');
    if(i===1||i===doc.numPages){const view=page.getViewport({scale:1.4}),canvas=createCanvas(Math.ceil(view.width),Math.ceil(view.height));await page.render({canvasContext:canvas.getContext('2d'),viewport:view}).promise;fs.writeFileSync(path.join('test-artifacts',name+'-'+i+'.png'),canvas.toBuffer('image/png'))}
   }
   assert.deepEqual(out,[],name+': text outside page bounds');
-  assert.ok(text.includes('Accidente de trabajo'));assert.ok(text.includes('H02'));if(name==='long')assert.ok(text.includes('MARCADOR_FINAL_EMPRESA'));
+  assert.ok(text.includes('Accidente de trabajo'));assert.ok(text.includes('H02'));assert.ok(text.includes('Disyunciones documentadas'));assert.ok(text.includes('Efecto H10'));if(name==='long'){assert.ok(text.includes('MARCADOR_FINAL_EMPRESA'));assert.ok(text.includes('FINAL_CODIGO'));}
   console.log('PASS PDF',name,doc.numPages,'pages, text bounds and content checked; cover/tree rendered');
  }
 })().catch(error=>{console.error(error);process.exitCode=1});

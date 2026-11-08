@@ -6,6 +6,7 @@ on:
       - 'v2.js'
       - 'auth.js'
       - 'v2.css'
+      - 'assets/mac-logo-horizontal.jpg'
       - 'index.html'
       - 'v2.html'
       - 'tests/**'

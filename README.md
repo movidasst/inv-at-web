@@ -14,6 +14,12 @@ node tests/pdf.cjs
 
 El navegador de prueba usa una respuesta simulada del servidor, nunca credenciales reales. Las pruebas descargan Excel/PDF, comprueban la importación con el gráfico abierto, las sesiones inventadas, el guardado cifrado y el cierre de sesión. La prueba PDF verifica el texto dentro de página y renderiza portada/anexo. Los archivos de prueba se guardan en `test-artifacts/` y no se publican.
 
+## Mantenimiento del informe
+
+- `renderReportHtml` define las secciones compartidas por la vista previa y el PDF. Si se añade un bloque de contenido, comprueba que `writeReportPdf` lo incluya. La imagen del árbol se captura una vez al iniciar cada descarga.
+- `writeReportPdf` controla márgenes, saltos, cabeceras y anexo. Conserva las pruebas con texto extenso, referencias de expediente largas y el caso de demostración.
+- Para publicar cambios de JavaScript o CSS, actualiza su parámetro de versión en `index.html` y `v2.html`. Verifica la vista del informe y su descarga desde ambos puntos de entrada.
+
 ## Despliegue de seguridad (orden obligatorio)
 
 1. Revisar y aplicar `server/mac-security.sql` en el proyecto Supabase `lfdmbkzghnwvsapxypvt`. Es una migración de una sola aplicación. Crea únicamente tablas privadas de MAC y funciones de sesión. Conserva los argumentos y columnas de `acceso_integrante`, y añade un límite compartido de cinco intentos fallidos por cédula cada 15 minutos.

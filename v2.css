@@ -90,3 +90,10 @@
 .graph-link-controls{margin-top:12px}.graph-links{list-style:none;padding:0;margin:0}.graph-links .btn{min-height:44px}.graph-link-controls .btn{min-height:44px}
 
 .fact-evidence{margin-top:14px}.fact-evidence>.btn{margin-top:8px;min-height:44px}.fact-evidence-list{list-style:none;padding:0;margin:0}.fact-evidence-list li{padding:8px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}.fact-evidence-list li:last-child{border-bottom:0}.fact-evidence-list .btn{min-height:44px}
+
+.printreport .report-brand img{display:block;width:min(210px,100%);height:auto;background:white;border-radius:8px;padding:5px}
+.report-index{display:flex;gap:8px;flex-wrap:wrap;padding:8px 0 14px}
+.report-index a{display:inline-flex;align-items:center;min-height:44px;padding:6px 10px;border:1px solid var(--line);border-radius:10px;background:#edf6f7;text-decoration:none}
+.report-index a:focus-visible,.printreport h2:focus-visible{outline:3px solid #ffb600;outline-offset:2px}
+.printreport h2{scroll-margin-top:16px}
+@media print{.report-index{display:none}}
