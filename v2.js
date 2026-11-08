@@ -125,7 +125,7 @@ const stageGuides=[
  ["Identifica el acontecimiento y las personas involucradas.","«A las 09:00 se registró una lesión de mano en la línea 2».","Registra fecha, hora, lugar y una descripción observable.",1],
  ["Documenta la notificación y la declaración por destinatario.","Una notificación puede tener constancia y estar fuera del plazo.","Revisa la fecha, hora y constancia de cada actuación aplicable.",3],
  ["Recopila fuentes y ordena los sucesos.","E03 es el video. Su hora de grabación permite ubicar el contacto.","Indica qué respalda cada fuente y deja claras las horas estimadas.",4],
- ["Redacta un hecho observable por registro y vincula su evidencia.","«A las 08:58 el resguardo estaba abierto», según E03.","Antes de marcar un hecho como verificado, comprueba el alcance de la fuente.",6],
+ ["Redacta un hecho observable por registro y vincula las evidencias que lo respaldan.","«A las 08:58 el resguardo estaba abierto», según E03.","Comprueba qué aporta cada fuente y documenta las discrepancias.",6],
  ["Marca el acontecimiento final y reconstruye sus antecedentes.","El movimiento del rodillo y la mano en la zona pueden formar una conjunción.","Comprueba qué tuvo que ocurrir y revisa los vínculos punteados.",9],
  ["Explica el papel de los hechos y el estado de las barreras.","Un permiso incompleto documenta una omisión de registro. El aislamiento requiere su propia evidencia.","Distingue hallazgos sustentados, hipótesis y diligencias pendientes.",5],
  ["Define medidas vinculadas a los hallazgos y cómo evaluar su eficacia.","Registrar la instalación de un resguardo y documentar su prueba funcional son verificaciones distintas.","Revisa responsable, plazo y criterio de eficacia para cada medida.",14],
@@ -171,6 +171,7 @@ function render(){
    const p=E("p");p.append(E("strong","",label+". "),document.createTextNode(text));guide.append(p);
   }
   link(guide,"Consultar pregunta relacionada del FAQ","faq.html#p"+faq);
+  link(guide,"Ubicar esta etapa en la plantilla Word","faq.html#ruta-mac");
   root.insertBefore(guide,root.children[2]||null);
  }
  if(s.demoMode&&step>0)demoTip(root,step);

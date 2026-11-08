@@ -40,7 +40,7 @@ const {chromium}=require('playwright');
  });
  await page.getByRole('button',{name:'Ver árbol de causas',exact:true}).click();await page.waitForSelector('#graph');
  assert.match(await page.locator('#stepLabel').textContent(),/Pantalla 6 de 9/);
- assert.equal(await page.locator('.stage-guide a').getAttribute('href'),'faq.html#p9');
+ assert.equal(await page.getByRole('link',{name:'Consultar pregunta relacionada del FAQ'}).getAttribute('href'),'faq.html#p9');
  page.on('dialog',dialog=>dialog.accept());
  await page.locator('#import').setInputFiles({name:'replacement.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:Buffer.from(replacement)});
  await page.waitForSelector('#reportPreview');
