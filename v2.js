@@ -245,20 +245,80 @@ function legal(root){
 function listEdit(root,arr,heading,columns,blank){sectionHead(root,heading,()=>{arr.push(Object.assign({id:ident()},blank));save();render()});if(!arr.length){note(root,"Todavía no hay registros. Agrega uno y consigna la fuente y el momento en que se obtuvo.");return}arr.forEach((item,i)=>{const card=E("div","item");const hd=E("div","row between");hd.append(E("strong","",heading+" · "+(i+1)));hd.append(btn("Eliminar",()=>{if(confirm("¿Eliminar este registro?")){removeRecord(arr,i);save();render()}},"btn danger"));card.append(hd);const gg=grid(card);columns.forEach(c=>field(gg,c[0],item[c[1]],v=>item[c[1]]=v,c[2]||"text",c[3]));root.append(card)})}
 function removeRecord(arr,index){
  const removed=arr[index];arr.splice(index,1);
- if(arr===s.evidence)for(const f of s.facts.filter(f=>f.evidenceId===removed.id)){f.evidenceId="";f.status="pendiente";if(s.analyses[f.id])s.analyses[f.id].certainty="pendiente"}
+ if(arr===s.evidence)for(const f of s.facts.filter(f=>factEvidenceIds(f).includes(removed.id)))unlinkFactEvidence(f,removed.id);
 }
 function evidences(root){pTitle(root,"3. Evidencias y reconstrucción cronológica","NT-04:2023, artículo 19, numeral 1.1.1: recopilar información objetiva, indagar individualmente testigos y analizar aspectos técnicos y organizacionales.");
 note(root,"Una declaración es una fuente, no automáticamente un hecho demostrado. Documenta quién informó, cuándo y cómo se contrastó. No uses juicios de valor.");
 const g=group(root,"Registro de evidencias (instrumento F06)");g.id="review-evidence";listEdit(g,s.evidence,"Evidencia",[["Tipo","type","select",[["documento","Documento"],["testimonio","Testimonio"],["fisica","Observación física"],["fotografia","Fotografía/croquis"],["digital","Registro digital"],["otra","Otra"]]],["Fuente / identificación","source"],["Fecha de obtención","date","date"],["Descripción objetiva","description","textarea"],["Estado de verificación","status","select",[["pendiente","Pendiente de contrastar"],["verificada","Verificada"],["contradictoria","Contradictoria"]]]],{type:"documento",source:"",date:"",description:"",status:"pendiente"});
 const c=group(root,"Cronología (instrumento F07)");c.id="review-timeline";listEdit(c,s.timeline,"Acontecimiento",[["Fecha / hora aproximada","when"],["Descripción comprobable","text","textarea"],["Fuente de respaldo / observaciones","source"]],{when:"",text:"",source:""});
 note(root,"Para construir el árbol, redacta hechos breves verificables y consigna la evidencia que los respalda. Las hipótesis permanecen fuera del árbol mientras no estén comprobadas.");}
-function facts(root){pTitle(root,"4. Hechos comprobados","OIT (2019), método del árbol de causas: cada hecho es objetivo, preciso y verificable. La fuente permite rastrear por qué fue incorporado.");
+function facts(root){pTitle(root,"4. Hechos comprobados","OIT (2019), método del árbol de causas: cada hecho es objetivo, preciso y verificable. Vincula las fuentes que permiten rastrear por qué fue incorporado.");
 sectionHead(root,"Listado de hechos (instrumento F08)",()=>{s.facts.push({id:ident(),text:"",evidenceId:"",status:"pendiente"});save();render()});
 if(!s.facts.length)note(root,"Agrega los hechos uno a uno. Por ejemplo: «La banda transportadora estaba en movimiento al momento del contacto»; evita «El trabajador fue imprudente».");
-s.facts.forEach((f,i)=>{const c=E("div","item");c.id="review-fact-"+f.id;const hd=E("div","row between");hd.append(E("strong","", f.id));hd.append(btn("Eliminar",()=>{if(confirm("¿Eliminar el hecho y su nodo en el árbol?")){s.facts.splice(i,1);if(s.diagram.final===f.id)s.diagram.final="";s.diagram.cytoscape=s.diagram.cytoscape.filter(x=>!(x.group==="nodes"&&x.data.id===f.id)&&!(x.group==="edges"&&(x.data.source===f.id||x.data.target===f.id)));delete s.analyses[f.id];s.actions=s.actions.filter(a=>a.factId!==f.id);save();render()}},"btn danger"));c.append(hd);field(c,"Enunciado objetivo del hecho",f.text,v=>{f.text=v;const n=s.diagram.cytoscape.find(x=>x.group==="nodes"&&x.data.id===f.id);if(n)n.data.label=v},"textarea");const row=grid(c);field(row,"Evidencia de respaldo",f.evidenceId,v=>f.evidenceId=v,"select",[["","Sin fuente asociada"]].concat(s.evidence.map((ev,j)=>[ev.id,ev.id+" · "+(ev.source||ev.type)])));field(row,"Estado del hecho",f.status,v=>f.status=v,"select",[["pendiente","Por verificar"],["verificado","Verificado"],["descartado","Descartado"]]);root.append(c)});
+s.facts.forEach((f,i)=>{const c=E("div","item");c.id="review-fact-"+f.id;const hd=E("div","row between");hd.append(E("strong","", f.id));hd.append(btn("Eliminar",()=>{if(confirm("¿Eliminar el hecho y su nodo en el árbol?")){s.facts.splice(i,1);if(s.diagram.final===f.id)s.diagram.final="";s.diagram.cytoscape=s.diagram.cytoscape.filter(x=>!(x.group==="nodes"&&x.data.id===f.id)&&!(x.group==="edges"&&(x.data.source===f.id||x.data.target===f.id)));delete s.analyses[f.id];s.actions=s.actions.filter(a=>a.factId!==f.id);save();render()}},"btn danger"));c.append(hd);field(c,"Enunciado objetivo del hecho",f.text,v=>{f.text=v;const n=s.diagram.cytoscape.find(x=>x.group==="nodes"&&x.data.id===f.id);if(n)n.data.label=v},"textarea");const row=grid(c);const status=field(row,"Estado del hecho",f.status,v=>f.status=v,"select",[["pendiente","Por verificar"],["verificado","Verificado"],["descartado","Descartado"]]);factEvidenceEditor(c,f,status);root.append(c)});
+note(root,"Puedes vincular varias evidencias al mismo hecho. Si alguna es contradictoria, registra y explica la discrepancia antes de dar el hecho por comprobado.");
 note(root,"Solo los hechos verificados deben incorporarse como hechos causales definitivos. La aplicación permite diagramas de trabajo preliminares, pero advertirá sobre elementos incompletos.","warn");}
+function factEvidenceIds(f){
+ return [f?.evidenceId,...(f?.additionalEvidenceIds||[])].filter(Boolean);
+}
+function hasVerifiedEvidence(f){
+ const ids=factEvidenceIds(f);
+ return s.evidence.some(e=>ids.includes(e.id)&&e.status==="verificada");
+}
+function unlinkFactEvidence(f,id){
+ const [primary,...additional]=factEvidenceIds(f).filter(value=>value!==id);
+ f.evidenceId=primary||"";
+ f.additionalEvidenceIds=additional;
+ if(hasVerifiedEvidence(f))return;
+ if(f.status==="verificado")f.status="pendiente";
+ const analysis=s.analyses[f.id];
+ if(analysis?.certainty==="sustentado")analysis.certainty="pendiente";
+}
+function evidenceLabel(e){
+ return e.id+" · "+(e.source||e.type)+" · "+({verificada:"Verificada",pendiente:"Pendiente de contrastar",contradictoria:"Contradictoria"}[e.status]||e.status);
+}
+function factEvidenceEditor(card,f,status){
+ const box=E("div","fact-evidence");
+ const row=grid(box);
+ const select=field(row,"Evidencia para vincular","",()=>{},"select",[]);
+ const list=E("ul","fact-evidence-list");
+ const message=E("p","muted");message.setAttribute("role","status");
+ const add=btn("Vincular evidencia",()=>{
+  const id=select.value;
+  const ids=factEvidenceIds(f);
+  if(!s.evidence.some(e=>e.id===id)||ids.includes(id))return;
+  if(ids.length)f.additionalEvidenceIds=[...ids.slice(1),id];
+  else f.evidenceId=id;
+  save();refresh();(select.disabled?status:select).focus();
+  message.textContent="Evidencia vinculada.";
+ });
+ select.oninput=()=>add.disabled=!select.value;
+ box.append(add,message,list);card.append(box);refresh();
+ function refresh(){
+  const ids=factEvidenceIds(f);
+  const available=s.evidence.filter(e=>!ids.includes(e.id));
+  select.replaceChildren(new Option(available.length?"Selecciona una evidencia":"Sin evidencias disponibles",""));
+  available.forEach(e=>select.add(new Option(evidenceLabel(e),e.id)));
+  select.disabled=!available.length;add.disabled=true;
+  list.replaceChildren();
+  if(!ids.length)list.append(E("li","muted","Sin evidencias vinculadas."));
+  ids.forEach(id=>{
+   const evidence=s.evidence.find(e=>e.id===id);
+   const label=evidence?evidenceLabel(evidence):id+" · Referencia no encontrada";
+   const item=E("li","row between");
+   const remove=btn("Quitar vínculo",()=>{
+    const previous=f.status;
+    unlinkFactEvidence(f,id);status.value=f.status;
+    save();refresh();(select.disabled?status:select).focus();
+    message.textContent=previous!==f.status?"Vínculo quitado. El hecho vuelve a «Por verificar» porque perdió su último respaldo verificado.":"Vínculo quitado.";
+   },"btn danger");
+   remove.setAttribute("aria-label","Quitar vínculo con "+label);
+   item.append(E("span","",label),remove);list.append(item);
+  });
+ }
+}
 function factSupported(f){
- return Boolean(f?.status==="verificado"&&String(f.text||"").trim()&&s.evidence.some(e=>e.id===f.evidenceId&&e.status==="verificada"));
+ return Boolean(f?.status==="verificado"&&String(f.text||"").trim()&&hasVerifiedEvidence(f));
 }
 function graphIntegrity(entries=graphData()){
  const supported=new Set(s.facts.filter(factSupported).map(f=>f.id));
@@ -410,7 +470,7 @@ function reviewIssues(){
  const edges=entries.filter(e=>e.group==="edges");
  for(const f of s.facts){
   if(f.status==="verificado"&&!factSupported(f))add("Hecho sin evidencia verificada: "+f.text.slice(0,75),4,"review-fact-"+f.id);
-  if(f.evidenceId&&!s.evidence.some(e=>e.id===f.evidenceId))add("Referencia de evidencia inexistente: "+f.id,4,"review-fact-"+f.id);
+  if(factEvidenceIds(f).some(id=>!s.evidence.some(e=>e.id===id)))add("Referencia de evidencia inexistente: "+f.id,4,"review-fact-"+f.id);
  }
  if(!edges.length)add("El árbol no tiene relaciones causales.",5,"graph");
  if(!s.diagram.final)add("No se marcó un acontecimiento final.",5,"graph");
@@ -517,7 +577,7 @@ function renderReportHtml(options={}){
  const section=(n,title,content)=>'<section class="report-section"><h2><span class="report-section-number">'+n+'</span>'+esc(title)+'</h2>'+content+'</section>';
  const evidence=s.evidence.map((e,i)=>card(e.id+" · "+(e.source||"Evidencia"),details([["Tipo",e.type],["Fecha",e.date],["Estado",e.status]])+para("Descripción y alcance",e.description))).join("")||'<p>No se han registrado evidencias.</p>';
  const chronology=s.timeline.map((t,i)=>card(t.id+" · "+(t.when||"Momento sin consignar"),para("Acontecimiento",t.text)+para("Respaldo",t.source))).join("")||'<p>No consta cronología.</p>';
- const facts=s.facts.map((f,i)=>card(f.id+(f.id===s.diagram.final?" · ACONTECIMIENTO FINAL":""),para("Hecho",f.text)+details([ ["Estado",f.status==="verificado"&&!factSupported(f)?"Por revisar · sustento insuficiente":f.status],["Evidencia asociada",(s.evidence.find(e=>e.id===f.evidenceId)||{}).source||"No vinculada"]]))).join("")||'<p>No constan hechos.</p>';
+ const facts=s.facts.map((f,i)=>card(f.id+(f.id===s.diagram.final?" · ACONTECIMIENTO FINAL":""),para("Hecho",f.text)+details([ ["Estado",f.status==="verificado"&&!factSupported(f)?"Por revisar · sustento insuficiente":f.status],["Evidencias vinculadas",factEvidenceIds(f).map(id=>{const e=s.evidence.find(ev=>ev.id===id);return e?evidenceLabel(e):id+" · Referencia no encontrada"}).join("\n")||"Sin evidencias vinculadas"]]))).join("")||'<p>No constan hechos.</p>';
  const classes={inmediata:"Causa inmediata",basica:"Causa básica",raiz:"Posible causa raíz",contribuyente:"Factor contribuyente",no_causal:"No causal / contexto",sin_clasificar:"Sin clasificar"};
  const analyses=s.facts.filter(f=>s.analyses[f.id]).map(f=>{const a=s.analyses[f.id];return card(f.id+" · "+(classes[a.classification]||"Sin clasificar"),para("Hecho analizado",f.text)+details([["Sustento",a.certainty==="sustentado"&&!factSupported(f)?"Por revisar · sustento insuficiente":a.certainty]])+para("Justificación y evidencia",a.why)+para("Barrera o control evaluado",a.barrier));}).join("")||'<p>No constan valoraciones causales.</p>';
  const measures=s.actions.map((a,i)=>card(a.id+" · "+(a.type||"Medida"),para("Acción propuesta",a.description)+details([["Responsable",a.owner],["Plazo",a.due],["Estado",a.status]])+para("Hallazgo vinculado",(s.facts.find(f=>f.id===a.factId)||{}).text)+para("Verificación de eficacia",a.verification)+para("Resultado documentado",a.result))).join("")||'<p>No se han definido medidas.</p>';
@@ -724,6 +784,7 @@ const input=[
 ["H12","No se ejecutó ningún aislamiento de energía.","E07","pendiente"]
 ];
 d.facts=input.map(([id,text,evidenceId,status])=>({id,text,evidenceId,status}));
+d.facts.find(f=>f.id==="H05").additionalEvidenceIds=["E03"];
 const positions={H08:[90,95],H09:[90,210],H07:[90,340],H06:[330,140],H01:[330,330],H02:[555,110],H03:[555,255],H04:[790,180],H05:[1030,180],H10:[790,390]};
 d.diagram.cytoscape=Object.entries(positions).map(([id,[x,y]])=>({group:"nodes",data:{id,label:d.facts.find(f=>f.id===id).text},position:{x,y}}));
 const conns=[["H02","H04","conjuncion"],["H03","H04","conjuncion"],["H04","H05","cadena"]];
@@ -770,7 +831,7 @@ function buildWorkbook(obj=s){
 if(!window.XLSX)throw Error("XLSX no disponible");
 const X=window.XLSX,book=X.utils.book_new();
 function add(name,rows){const sheet=X.utils.aoa_to_sheet(rows.map(row=>row.map(excelText)));const maximum=rows.reduce((m,r)=>Math.max(m,r.length),1);sheet["!cols"]=Array.from({length:maximum},(_,i)=>({wch:i===0?29:i===1?46:Math.min(42,Math.max(22,rows.slice(0,25).reduce((l,row)=>Math.max(l,String(row[i]??"").length),10)))}));if(rows.length>1&&maximum>1)sheet["!autofilter"]={ref:X.utils.encode_range({s:{r:0,c:0},e:{r:rows.length-1,c:maximum-1}})};X.utils.book_append_sheet(book,sheet,name)}
-add("LEEME",[["Identificador",EXCEL_TAG],["Versión",EXCEL_VERSION],["Producto","MAC · Método del Árbol de Causas — Academia Movida de SST · Investigación de Accidentes de Trabajo"],["Objeto","Libro editable que conserva el expediente completo, incluido el árbol y los identificadores de hechos."],["Uso","Puedes editar y reimportar este libro desde mac.movidasst.com."],["Precaución","Conserva las hojas, encabezados y los ID para no romper vínculos entre evidencias, hechos, causas y medidas."],["Aviso","No es declaración oficial ante INPSASEL."],["Normas","LOPCYMAT · Reglamento Parcial · NT-04:2023, artículo 19"],["Confidencialidad","Protege la identidad y la información laboral/sanitaria de las personas involucradas."],["CSSL","Comité de Seguridad y Salud Laboral (CSSL), LOPCYMAT art. 46"],["Generación",new Date().toISOString()]]);
+add("LEEME",[["Identificador",EXCEL_TAG],["Versión",EXCEL_VERSION],["Producto","MAC · Método del Árbol de Causas — Academia Movida de SST · Investigación de Accidentes de Trabajo"],["Objeto","Libro editable que conserva el expediente completo, incluido el árbol y los identificadores de hechos."],["Uso","Puedes editar y reimportar este libro desde mac.movidasst.com."],["Respaldos","HECHOS guarda el primer ID de evidencia de cada hecho. RESPALDOS_HECHO guarda cada vínculo adicional en una fila."],["Precaución","Conserva las hojas, encabezados y los ID para no romper vínculos entre evidencias, hechos, causas y medidas."],["Aviso","No es declaración oficial ante INPSASEL."],["Normas","LOPCYMAT · Reglamento Parcial · NT-04:2023, artículo 19"],["Confidencialidad","Protege la identidad y la información laboral/sanitaria de las personas involucradas."],["CSSL","Comité de Seguridad y Salud Laboral (CSSL), LOPCYMAT art. 46"],["Generación",new Date().toISOString()]]);
 for(const spec of bookSections){
 if(spec.kind==="kv"){add(spec.sheet,[["Campo","Valor"],...spec.entries.map(([label,key])=>[label,obj.general[key]??""])])}
 else if(spec.kind==="legal"){add(spec.sheet,[["Código","Actuación","Fecha y hora","Constancia","Aplica"],...legalActs.map(act=>{
@@ -781,6 +842,7 @@ else if(spec.kind==="nodes"){add(spec.sheet,[["ID de nodo / hecho","Texto del no
 else if(spec.kind==="edges"){add(spec.sheet,[["ID de relación","ID causa","ID efecto","Tipo de relación"],...(obj.diagram.cytoscape||[]).filter(x=>x.group==="edges").map(e=>[e.data.id||ident(),e.data.source,e.data.target,e.data.relacion||"cadena"])])}
 else if(spec.kind==="analysis"){add(spec.sheet,[["ID de hecho","Clasificación","Estado de sustento","Justificación con evidencia","Barreras / controles"],...Object.keys(obj.analyses||{}).map(id=>[id,obj.analyses[id].classification||"",obj.analyses[id].certainty||"",obj.analyses[id].why||"",obj.analyses[id].barrier||""])])}
 else if(spec.kind==="final"){add(spec.sheet,[["Campo","Contenido"],["Conclusiones",obj.conclusion||""],["Limitaciones / información faltante",obj.limits||""],["Fecha de revisión",obj.reviewDate||""]])}}
+add("RESPALDOS_HECHO",[["ID de hecho","ID de evidencia"],...obj.facts.flatMap(f=>factEvidenceIds(f).slice(1).map(id=>[f.id,id]))]);
 return book}
 function downloadWorkbook(obj=s,name){if(!excelAvailable())return;try{if(cy)save();const safe=String(name||obj.general.code||"expediente").replace(/[^a-zA-Z0-9_-]/g,"_").slice(0,45);window.XLSX.writeFile(buildWorkbook(obj),"MAC_Investigacion_"+safe+".xlsx",{compression:true})}catch(e){console.error(e);alert("No se pudo generar el archivo Excel: "+e.message)}}
 function workbookToState(book){
@@ -799,7 +861,20 @@ const relIds=new Set();for(const [i,row] of edgeRows.entries()){if(!row.some(x=>
 const adjacent=new Map();obj.diagram.cytoscape.filter(x=>x.group==="edges").forEach(e=>{if(!adjacent.has(e.data.source))adjacent.set(e.data.source,[]);adjacent.get(e.data.source).push(e.data.target)});const seen=new Set(),stack=new Set();function visit(n){if(stack.has(n))throw Error("El árbol contiene un ciclo causal; revisa RELACIONES.");if(seen.has(n))return;stack.add(n);for(const m of adjacent.get(n)||[])visit(m);stack.delete(n);seen.add(n)}for(const n of nodeIds)visit(n);
 for(const row of rows("ANALISIS").slice(1)){if(!row[0])continue;if(!factIds.has(row[0]))throw Error("ANALISIS contiene un ID de hecho desconocido: "+row[0]);obj.analyses[row[0]]={classification:row[1]||"sin_clasificar",certainty:row[2]||"pendiente",why:row[3]||"",barrier:row[4]||""}}
 const endings=Object.fromEntries(rows("CONCLUSIONES").slice(1).map(row=>[row[0],row[1]||""]));obj.conclusion=endings["Conclusiones"]||"";obj.limits=endings["Limitaciones / información faltante"]||"";obj.reviewDate=endings["Fecha de revisión"]||"";
-const evidenceIds=new Set(obj.evidence.map(x=>x.id));for(const f of obj.facts){if(f.evidenceId&&!evidenceIds.has(f.evidenceId))throw Error("HECHOS contiene un ID de evidencia no encontrado: "+f.evidenceId)}
+const evidenceIds=new Set(obj.evidence.map(x=>x.id));
+for(const f of obj.facts)if(f.evidenceId&&!evidenceIds.has(f.evidenceId))throw Error("HECHOS contiene un ID de evidencia no encontrado: "+f.evidenceId);
+if(book.Sheets.RESPALDOS_HECHO){
+ const [header,...records]=rows("RESPALDOS_HECHO");
+ if(header?.[0]!=="ID de hecho"||header[1]!=="ID de evidencia")throw Error("Los encabezados de RESPALDOS_HECHO fueron modificados.");
+ const factsById=new Map(obj.facts.map(f=>[f.id,f]));
+ for(const [i,[factId,evidenceId]] of records.entries()){
+  const fact=factsById.get(factId);
+  if(!fact||!evidenceIds.has(evidenceId))throw Error("Referencia desconocida en RESPALDOS_HECHO, fila "+(i+2));
+  if(factEvidenceIds(fact).includes(evidenceId))throw Error("Vínculo duplicado en RESPALDOS_HECHO, fila "+(i+2));
+  if(!fact.evidenceId)fact.evidenceId=evidenceId;
+  else (fact.additionalEvidenceIds||=[]).push(evidenceId);
+ }
+}
 for(const a of obj.actions){if(a.factId&&!factIds.has(a.factId))throw Error("MEDIDAS contiene un ID de hecho no encontrado: "+a.factId)}
 const allIds=obj.evidence.map(x=>x.id),unique=new Set(allIds);if(unique.size!==allIds.length)throw Error("Hay ID duplicados en EVIDENCIAS.");
 validateImportedState(obj);

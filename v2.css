@@ -88,3 +88,5 @@
 #stage [tabindex="-1"]{scroll-margin-top:1rem}
 
 .graph-link-controls{margin-top:12px}.graph-links{list-style:none;padding:0;margin:0}.graph-links .btn{min-height:44px}.graph-link-controls .btn{min-height:44px}
+
+.fact-evidence{margin-top:14px}.fact-evidence>.btn{margin-top:8px;min-height:44px}.fact-evidence-list{list-style:none;padding:0;margin:0}.fact-evidence-list li{padding:8px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}.fact-evidence-list li:last-child{border-bottom:0}.fact-evidence-list .btn{min-height:44px}

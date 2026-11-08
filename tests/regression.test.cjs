@@ -12,7 +12,7 @@ function harness(){
  const localStorage={getItem:key=>memory.get(key)||null,setItem:(key,value)=>memory.set(key,value),removeItem:key=>memory.delete(key)};
  const window={addEventListener(){},scrollTo(){},XLSX:{utils:{book_new:()=>({Sheets:{}}),aoa_to_sheet:rows=>({rows}),book_append_sheet:(b,s,n)=>b.Sheets[n]=s,encode_range:()=>'',sheet_to_json:s=>s.rows}}};
  const sandbox={window,document,localStorage,crypto:webcrypto,TextEncoder,TextDecoder,btoa,atob,console,alert(){},confirm:()=>true};
- const source=fs.readFileSync(require.resolve('../v2.js'),'utf8').replace(/\}\)\(\);\s*$/,`async function withoutRender(action){const old=render;render=()=>{};try{return await action()}finally{render=old}}window.audit={initial,demo,reviewIssues,updateReviewStatus,warnings,captureDiagram,replaceSafely:(...args)=>withoutRender(()=>replaceSafely(...args)),restoreInvestigation:()=>withoutRender(restoreInvestigation),buildWorkbook,workbookToState,removeRecord,isWorkInProgress,save,load,renderReportHtml,setState:v=>s=v,getState:()=>s,setCy:v=>cy=v,configure:async()=>{STORAGE="test-store";storageKey=await crypto.subtle.importKey("raw",new Uint8Array(32),"AES-GCM",false,["encrypt","decrypt"])},switchWithoutRender:(v)=>{const old=render;render=()=>{};try{showInvestigation(v,8);save()}finally{render=old}}};})();`);
+ const source=fs.readFileSync(require.resolve('../v2.js'),'utf8').replace(/\}\)\(\);\s*$/,`async function withoutRender(action){const old=render;render=()=>{};try{return await action()}finally{render=old}}window.audit={initial,demo,reviewIssues,updateReviewStatus,warnings,captureDiagram,replaceSafely:(...args)=>withoutRender(()=>replaceSafely(...args)),restoreInvestigation:()=>withoutRender(restoreInvestigation),buildWorkbook,workbookToState,removeRecord,factSupported,isWorkInProgress,save,load,renderReportHtml,setState:v=>s=v,getState:()=>s,setCy:v=>cy=v,configure:async()=>{STORAGE="test-store";storageKey=await crypto.subtle.importKey("raw",new Uint8Array(32),"AES-GCM",false,["encrypt","decrypt"])},switchWithoutRender:(v)=>{const old=render;render=()=>{};try{showInvestigation(v,8);save()}finally{render=old}}};})();`);
  vm.runInNewContext(source,sandbox);
  return {api:window.audit,window,labels,memory,localStorage,elements};
 }
@@ -150,4 +150,35 @@ test('report notices retain the exact stage and record needed for review',()=>{
  const print=api.renderReportHtml({forPdf:true});
  assert.match(print,/Declaración formal al CSSL: sin constancia/);
  assert.doesNotMatch(print,/class="review-link"/);
+});
+
+test('multiple evidence links survive Excel and appear with their state in the report',()=>{
+ const {api}=harness(),data=api.workbookToState(api.buildWorkbook(api.demo()));
+ const fact=data.facts.find(f=>f.id==='H05');
+ assert.equal(fact.evidenceId,'E04');
+ assert.deepEqual(Array.from(fact.additionalEvidenceIds),['E03']);
+ api.setState(data);
+ const report=api.renderReportHtml({forPdf:true});
+ assert.match(report,/Evidencias vinculadas[\s\S]*E04 · [^<]+ · Verificada[\s\S]*E03 · [^<]+ · Verificada/);
+});
+test('deleting a source keeps a verified fact if another verified source remains',()=>{
+ const {api}=harness(),data=api.demo();api.setState(data);
+ const fact=data.facts.find(f=>f.id==='H05');
+ api.removeRecord(data.evidence,data.evidence.findIndex(e=>e.id==='E04'));
+ assert.equal(fact.evidenceId,'E03');
+ assert.ok(api.factSupported(fact));
+ api.removeRecord(data.evidence,data.evidence.findIndex(e=>e.id==='E03'));
+ assert.equal(fact.evidenceId,'');
+ assert.equal(fact.status,'pendiente');
+ assert.equal(api.factSupported(fact),false);
+});
+test('legacy workbooks remain readable and invalid supplementary evidence links are rejected',()=>{
+ const {api}=harness();
+ const oldBook=api.buildWorkbook(api.demo());delete oldBook.Sheets.RESPALDOS_HECHO;
+ const old=api.workbookToState(oldBook);
+ api.setState(old);assert.ok(api.factSupported(old.facts.find(f=>f.id==='H05')));
+ for(const [row,error] of [[['H05','E04'],/duplicado/],[['H05','UNKNOWN'],/desconocida/],[['UNKNOWN','E04'],/desconocida/]]){
+  const book=api.buildWorkbook(api.demo());book.Sheets.RESPALDOS_HECHO.rows.push(row);
+  assert.throws(()=>api.workbookToState(book),error);
+ }
 });
