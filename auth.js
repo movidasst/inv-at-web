@@ -5,11 +5,49 @@ const URL="https://lfdmbkzghnwvsapxypvt.supabase.co/rest/v1/rpc/";
 const APIKEY="sb_publishable_bRnkA6PA8-v073nrw9zxiQ_8rVGiOn1";
 const SESSION="movida-sst-mac-session";
 let token=null,expiryTimer=null,checkTimer=null,closing=false;
+let gameScope=null,gameFrame=null,gameRequest=null;
+const gameProgressKey=key=>/^expediente-mac-[a-z0-9-]{1,64}$/i.test(key);
 const message=text=>{$("loginMessage").textContent=text};
 async function rpc(name,body){
  const response=await fetch(URL+name,{method:"POST",headers:{apikey:APIKEY,"Content-Type":"application/json"},body:JSON.stringify(body),cache:"no-store",signal:AbortSignal.timeout(15000)});
  if(!response.ok)throw Error("No fue posible validar la sesión con el servidor.");
  return response.json();
+}
+function gameStorageKey(){return "mac-member-game:"+gameScope}
+function readGameProgress(){
+ try{return JSON.parse(localStorage.getItem(gameStorageKey())||"{}")||{}}catch{return {}}
+}
+async function showGameTab(focus=false){
+ if($("appShell").hidden)return;
+ const show=location.hash==="#juego-mac";
+ $("macGamePanel").hidden=!show;$("macWorkspace").hidden=show;
+ if(!show)return;
+ if(focus)$("macGameTitle").focus();
+ if(gameFrame||gameRequest)return;
+ const activeToken=token;
+ const request=rpc("mac_game",{p_token:activeToken});
+ gameRequest=request;$("macGameStatus").textContent="Cargando el juego…";$("macGameRetry").hidden=true;
+ try{
+  const html=await request;
+  if(activeToken!==token||$("appShell").hidden)return;
+  if(typeof html!=="string"||!html.includes("__MAC_GAME_PROGRESS__"))throw Error("Juego no disponible");
+  const progress=JSON.stringify(readGameProgress()).replace(/</g,"\\u003c");
+  const frame=document.createElement("iframe");
+  frame.className="game-frame";
+  frame.title="Expediente MAC, juego de investigación de accidentes";
+  frame.setAttribute("sandbox","allow-scripts allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox");
+  frame.referrerPolicy="no-referrer";
+  frame.srcdoc=html.replace("__MAC_GAME_PROGRESS__",()=>progress);
+  gameFrame=frame;$("macGameMount").replaceChildren(frame);$("macGameStatus").textContent="";
+ }catch{
+  if(activeToken!==token||$("appShell").hidden)return;
+  $("macGameStatus").textContent="No se pudo cargar el juego. Comprueba tu conexión y vuelve a intentar.";
+  $("macGameRetry").hidden=false;
+ }finally{if(gameRequest===request)gameRequest=null}
+}
+function clearGame(){
+ gameScope=null;gameRequest=null;gameFrame=null;$("macGameMount").replaceChildren();
+ $("macGamePanel").hidden=true;$("macWorkspace").hidden=false;
 }
 async function legacyScope(cedula){
  const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode("MAC:member:"+cedula));
@@ -20,6 +58,7 @@ async function openApp(data,legacy){
  await window.MACApp.start({scope:data.scope,key:data.key,legacyScope:legacy});
  $("loginGate").hidden=true;$("appShell").hidden=false;$("appShell").setAttribute("aria-hidden","false");
  $("memberName").textContent=data.name||"integrante";document.body.classList.remove("auth-locked");
+ gameScope=data.scope;void showGameTab();
  clearTimeout(expiryTimer);clearInterval(checkTimer);
  expiryTimer=setTimeout(()=>closeSession(true),Math.max(0,Date.parse(data.expires_at)-Date.now()));
  checkTimer=setInterval(async()=>{try{const checkedToken=token;const valid=await rpc("mac_resume",{p_token:checkedToken});if(token===checkedToken&&!valid?.ok)await closeSession(true)}catch{/* La caducidad local sigue activa durante fallos transitorios de red. */}},60000);
@@ -31,6 +70,7 @@ async function closeSession(expired=false){
  clearTimeout(expiryTimer);clearInterval(checkTimer);
  const previous=token;token=null;sessionStorage.removeItem(SESSION);
  $("appShell").hidden=true;$("appShell").setAttribute("aria-hidden","true");$("loginGate").hidden=false;document.body.classList.add("auth-locked");
+ clearGame();
  await window.MACApp.lock();
  if(previous)try{await rpc("mac_logout",{p_token:previous})}catch{}
  message(saveFailed?"La sesión terminó con un error de guardado. Ingresa nuevamente y revisa el último avance conservado.":expired?"Tu sesión terminó. Ingresa nuevamente para continuar.":"Sesión cerrada.");
@@ -53,6 +93,15 @@ async function submitLogin(event){
  finally{$("memberPassword").value="";submit.disabled=false}
 }
 async function init(){
+ window.addEventListener("hashchange",()=>{void showGameTab(true)});
+ $("macGameRetry").addEventListener("click",()=>{void showGameTab()});
+ window.addEventListener("message",event=>{
+  if(!gameFrame||event.source!==gameFrame.contentWindow||event.origin!=="null"||!gameScope||$("appShell").hidden)return;
+  const {type,key,value}=event.data||{};
+  if(type!=="mac-game-progress"||typeof key!=="string"||!gameProgressKey(key)||typeof value!=="string"||value.length>100000)return;
+  try{const progress=readGameProgress();progress[key]=value;localStorage.setItem(gameStorageKey(),JSON.stringify(progress))}catch{}
+ });
+
  $("memberLogin").addEventListener("submit",submitLogin);
  $("togglePassword").addEventListener("click",()=>{const input=$("memberPassword"),show=input.type==="password";input.type=show?"text":"password";$("togglePassword").textContent=show?"Ocultar":"Mostrar";$("togglePassword").setAttribute("aria-pressed",String(show))});
  $("logoutBtn").addEventListener("click",()=>closeSession());

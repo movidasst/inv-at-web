@@ -24,7 +24,7 @@
 <meta name="twitter:description" content="Investiga accidentes de trabajo con MAC: documenta evidencias, reconstruye hechos, construye el árbol de causas y genera informes. Herramienta de La Movida de SST, con enfoque en la legislación venezolana.">
 <meta name="twitter:image" content="https://mac.movidasst.com/assets/mac-social-preview-v2.jpg">
 <meta name="twitter:image:alt" content="MAC, Método del Árbol de Causas. Investigación de Accidentes de Trabajo. Academia Movida de SST.">
-<link rel="stylesheet" href="v2.css?v=20261108-juego">
+<link rel="stylesheet" href="v2.css?v=20261108-juego-privado">
 <link rel="stylesheet" href="auth.css?v=20261031d">
 <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.33.1/dist/cytoscape.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dagre@0.8.5/dist/dagre.min.js"></script>
@@ -32,7 +32,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script defer src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script defer src="v2.js?v=20261108-informe2"></script>
-<script defer src="auth.js?v=20261108-resguardo"></script>
+<script defer src="auth.js?v=20261108-juego-privado"></script>
 <script defer src="https://www.movidasst.com/analytics.js?v=20261025-ga4com2"></script>
 <style>
 .mac-faq{margin:1rem 0;background:#fff;border:1px solid #cbdedc;border-radius:16px;overflow:hidden;scroll-margin-top:1rem}
@@ -77,7 +77,6 @@
       </form>
       <p class="login-help">¿Todavía no tienes credenciales? <a href="https://registro.movidasst.com/" target="_blank" rel="noopener noreferrer">Regístrate en La Movida de SST</a>.</p>
       <p class="login-help"><a href="faq.html">Consultar preguntas frecuentes del MAC</a></p>
-      <div class="game-login"><a class="btn game-entry" href="juego.html" target="_blank" rel="noopener noreferrer">Ir al juego</a><small>Practica con dos casos sin iniciar sesión. Se abre en otra pestaña.</small></div>
       <p class="login-privacy">La validación se realiza contra el registro de integrantes. MAC no almacena tu cédula ni tu clave en la sesión. El acceso permanece abierto durante <strong>60 minutos</strong>; tus avances se guardan cifrados en este navegador y puedes exportarlos a Excel. Evita usar datos sensibles en dispositivos compartidos.</p>
     </div>
   </div>
@@ -86,9 +85,23 @@
 <div id="appShell" hidden aria-hidden="true">
 <header class="head">
 <a href="https://www.movidasst.com" class="brand" aria-label="La Movida de SST · Inicio"><img src="https://raw.githubusercontent.com/movidasst/aplicaciones/main/logo-oficial-movida-sst-plus.png" alt="Logo La Movida de SST"><span>Academia Movida de SST<small>De la Reacción a la Prevención</small></span></a>
-<div class="header-actions"><a class="btn game-entry" href="juego.html" target="_blank" rel="noopener noreferrer">Ir al juego</a><a class="btn secondary" id="macFaqLink" href="#faq-mac">Preguntas frecuentes</a><a class="btn secondary" href="https://movidasst.org/" target="_blank" rel="noopener noreferrer">Acceder a Moodle</a><span id="saved" class="muted" role="status">Guardado local</span><div class="member-strip"><span id="memberName"></span><button type="button" id="logoutBtn">Cerrar sesión</button></div><button type="button" id="new" class="btn danger">Nueva</button><button type="button" id="export" class="btn secondary">Exportar Excel</button><label class="btn secondary" for="import">Importar Excel</label><input type="file" id="import" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden></div>
+<div class="header-actions"><a class="btn game-entry" id="macGameLink" href="#juego-mac">Ir al juego</a><a class="btn secondary" id="macFaqLink" href="#faq-mac">Preguntas frecuentes</a><a class="btn secondary" href="https://movidasst.org/" target="_blank" rel="noopener noreferrer">Acceder a Moodle</a><span id="saved" class="muted" role="status">Guardado local</span><div class="member-strip"><span id="memberName"></span><button type="button" id="logoutBtn">Cerrar sesión</button></div><button type="button" id="new" class="btn danger">Nueva</button><button type="button" id="export" class="btn secondary">Exportar Excel</button><label class="btn secondary" for="import">Importar Excel</label><input type="file" id="import" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden></div>
 </header>
-<div class="shell">
+<section class="shell" id="macGamePanel" aria-labelledby="macGameTitle" hidden>
+<nav class="row game-tabs" aria-label="Secciones de MAC">
+  <a class="btn secondary" href="#investigacion-mac">← Volver a la investigación</a>
+  <span class="btn" aria-current="page">Juego de investigación</span>
+</nav>
+<div class="hero game-hero">
+  <span class="pill">Práctica del Método del Árbol de Causas</span>
+  <h1 id="macGameTitle" tabindex="-1">Expediente MAC</h1>
+  <p>Elige un caso, revisa las evidencias y construye el árbol.</p>
+</div>
+<p id="macGameStatus" role="status"></p>
+<button class="btn secondary" id="macGameRetry" type="button" hidden>Volver a intentar</button>
+<div id="macGameMount"></div>
+</section>
+<div class="shell" id="macWorkspace">
 <div class="hero"><span class="pill">Herramienta técnica · Venezuela</span><h1>MAC · Método del Árbol de Causas</h1><p><strong>Investigación de Accidentes de Trabajo.</strong> Metodología, causalidad y prevención. Desarrollo guiado conforme a la LOPCYMAT, su Reglamento Parcial y la NT-04:2023, con método del árbol de causas y análisis de causas raíz.</p></div>
 <section id="demoBanner" class="demo-banner" aria-label="Demostración y gestión de investigación">
 <div class="demo-banner-copy"><span id="demoLoadedLabel" class="demo-label">Investigación de prueba disponible</span><p id="demoSummary">Puedes cargar un expediente completo con un caso ficticio, recorrer sus etapas y consultar el informe inmediatamente.</p></div>
