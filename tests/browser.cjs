@@ -35,7 +35,7 @@ const {chromium}=require('playwright');
  // Import a different but internally valid graph while the old graph is alive.
  const replacement=await page.evaluate(async()=>{
   const response=await fetch('/test-artifacts/demo.xlsx'),book=XLSX.read(await response.arrayBuffer(),{type:'array'});
-  const rows=XLSX.utils.sheet_to_json(book.Sheets.RELACIONES,{header:1,defval:''});rows.pop();book.Sheets.RELACIONES=XLSX.utils.aoa_to_sheet(rows);
+  const rows=XLSX.utils.sheet_to_json(book.Sheets.RELACIONES,{header:1,defval:''});rows.splice(rows.findIndex(row=>row[3]==="conjuncion"),1);book.Sheets.RELACIONES=XLSX.utils.aoa_to_sheet(rows);
   return Array.from(new Uint8Array(XLSX.write(book,{type:'array',bookType:'xlsx'})));
  });
  await page.getByRole('button',{name:'Ver árbol de causas',exact:true}).click();await page.waitForSelector('#graph');
