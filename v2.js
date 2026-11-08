@@ -13,8 +13,16 @@ if(window.cytoscape&&window.cytoscapeDagre){try{window.cytoscape.use(window.cyto
 const $=id=>document.getElementById(id);const E=(tag,cls,txt)=>{const x=document.createElement(tag);if(cls)x.className=cls;if(txt!==undefined&&txt!==null)x.textContent=txt;return x};
 const esc=t=>String(t??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
 const ident=()=>Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-3);
+const legalActs=[
+ {key:"inpsasel",name:"Notificación al INPSASEL",hours:1,span:"60 minutos",article:83},
+ {key:"committee",name:"Notificación al Comité de Seguridad y Salud Laboral (CSSL)",hours:12,span:"12 horas",article:83},
+ {key:"union",name:"Notificación al sindicato",hours:12,span:"12 horas",article:83,union:true},
+ {key:"formal",name:"Declaración formal ante el INPSASEL",hours:24,span:"24 horas",article:84},
+ {key:"formalCommittee",name:"Declaración formal al CSSL",hours:24,span:"24 horas",article:84},
+ {key:"formalUnion",name:"Declaración formal al sindicato",hours:24,span:"24 horas",article:84,union:true}
+];
 const initial=()=>({version:2,general:{code:"",company:"",place:"",date:"",time:"",description:"",worker:"",job:"",consequence:"",investigator:"",role:"",delegates:"",team:"",emergency:""},
-legal:{inpsasel:{at:"",proof:""},committee:{at:"",proof:""},union:{at:"",proof:""},formal:{at:"",proof:""},notes:""},
+legal:{...Object.fromEntries(legalActs.map(a=>[a.key,{at:"",proof:""}])),notes:""},
 evidence:[],timeline:[],facts:[],diagram:{cytoscape:[],seq:1,final:""},analyses:{},actions:[],conclusion:"",limits:"",reviewDate:""});
 let s=initial(),step=0,cy=null;
 let storageKey=null,saveQueue=Promise.resolve(),pendingSaves=0,saveError=null;
@@ -36,7 +44,7 @@ function save(){
 window.addEventListener("beforeunload",event=>{if(pendingSaves||saveError){event.preventDefault();event.returnValue=""}});
 function migrate(o){
 if(!o||!o.general||!Array.isArray(o.facts))throw Error("Formato no compatible");
-if(o.version===2){if(!o.legal||!o.diagram||!Array.isArray(o.evidence))throw Error("Archivo incompleto");return o}
+if(o.version===2){if(!o.legal||!o.diagram||!Array.isArray(o.evidence))throw Error("Archivo incompleto");return {...o,legal:{...initial().legal,...o.legal}}}
 const d=initial(),g=o.general||{};
 Object.assign(d.general,{date:g.date||"",time:g.time||"",place:g.location||"",description:g.description||"",worker:o.persons?.[0]?.name||"",job:o.persons?.[0]?.role||"",consequence:o.persons?.[0]?.consequence||"",investigator:o.investigator?.name||"",role:o.investigator?.role||""});
 d.facts=o.facts.map((f,i)=>({id:"legacy-fact-"+i,text:typeof f==="string"?f:String(f?.text||""),evidenceId:"",status:"pendiente"}));
@@ -66,7 +74,32 @@ x.setAttribute("aria-label",label);x.oninput=()=>{onChange(x.value);save()};d.ap
 function grid(root,cls="two"){const d=E("div",cls);root.append(d);return d}
 function sectionHead(root,title,onAdd){const r=E("div","section-head");r.append(E("h3","",title));r.append(btn("＋ Agregar",onAdd));root.append(r)}
 function link(root,text,url){const a=E("a","",text);a.href=url;a.target="_blank";a.rel="noopener noreferrer";root.append(a);return a}
-function due(hours){const g=s.general;if(!g.date||!g.time)return "Registra fecha y hora del accidente";const [y,m,day]=g.date.split("-").map(Number),[hh,mm]=g.time.split(":").map(Number);const d=new Date(Date.UTC(y,m-1,day,hh,mm)+Math.round(hours*3600000));if(Number.isNaN(d.getTime()))return "Fecha u hora inválidas";const pad=x=>String(x).padStart(2,"0");return pad(d.getUTCDate())+"/"+pad(d.getUTCMonth()+1)+"/"+d.getUTCFullYear()+" · "+pad(d.getUTCHours())+":"+pad(d.getUTCMinutes())+" h (Venezuela)"}
+function localTimestamp(value){
+ const m=/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(?::(\d{2}))?$/.exec(String(value||""));
+ if(!m)return null;
+ const iso=m[1]+"T"+m[2]+":"+(m[3]||"00"), ms=Date.parse(iso+"Z");
+ return Number.isFinite(ms)&&new Date(ms).toISOString().slice(0,19)===iso?ms:null;
+}
+function accidentTime(obj=s){return localTimestamp(obj.general.date+"T"+obj.general.time);}
+function legalResult(act,obj=s){
+ const record=obj.legal[act.key]||{}, start=accidentTime(obj), end=start===null?null:start+act.hours*3600000;
+ const at=localTimestamp(record.at), proof=Boolean(String(record.proof||"").trim());
+ const applicability=act.union?(obj.legal.union.applies||"por_confirmar"):"si";
+ let timing;
+ if(applicability==="no")timing="No aplica según lo registrado";
+ else if(!record.at)timing="Sin fecha de realización";
+ else if(at===null)timing="Fecha de realización inválida";
+ else if(start===null)timing="Sin fecha y hora válidas del accidente";
+ else if(at<start)timing="Fecha anterior al accidente";
+ else timing=at<=end?"En plazo":"Fuera de plazo";
+ const proofLabel=applicability==="no"?"No aplica":proof?"Constancia registrada":"Sin constancia";
+ return {record,end,timing,proof,proofLabel,applicability};
+}
+function legalDeadline(end){
+ if(end===null)return "Registra fecha y hora válidas del accidente";
+ const [day,time]=new Date(end).toISOString().split("T");
+ return day.split("-").reverse().join("/")+" · "+time.slice(0,5)+" h (Venezuela)";
+}
 function headerNav(){const nav=$("steps");nav.innerHTML="";STEPS.forEach((name,i)=>{const b=btn((i===step?"● ":"")+i+". "+name,()=>goto(i),"step"+(i===step?" current":""));nav.append(b)});$("progressBar").style.width=Math.round(step/(STEPS.length-1)*100)+"%";$("stepLabel").textContent="Etapa "+(step+1)+" de "+STEPS.length}
 function goto(i){if(cy){save();cy.destroy();cy=null}step=Math.min(STEPS.length-1,Math.max(0,i));render();window.scrollTo({top:0,behavior:"smooth"})}
 function render(){headerNav();updateDemoControls();const root=$("stage");root.innerHTML="";const renders=[intro,identification,legal,evidences,facts,diagram,analysis,actions,report];renders[step](root);if(s.demoMode&&step>0)demoTip(root,step);$("back").disabled=step===0;$("next").disabled=step===STEPS.length-1;$("next").textContent=step===STEPS.length-2?"Ver informe →":"Siguiente →"}
@@ -89,7 +122,7 @@ function demoTip(root,stage){
 const t=[
 "",
 "Módulo 1. Comprueba que los datos iniciales describan el evento sin atribuir culpas. Identidades y entidad son ficticias.",
-"Módulo 1. Revisa las cuatro comunicaciones simuladas al INPSASEL, al CSSL y al sindicato, además de la declaración formal. Ninguna constancia tiene validez legal.",
+"Módulo 1. Compara las notificaciones iniciales y las declaraciones formales simuladas por destinatario. Ninguna constancia tiene validez legal.",
 "Módulo 2. Lee E01–E11. Fíjate en que E07–E08 son testimonios pendientes y E09 (foto posterior) no prueba el estado previo.",
 "Módulo 2. Compara hechos verificados con H11 y H12, que permanecen pendientes. No deben utilizarse como hechos definitivos.",
 "Módulo 3. Revisa las conjunciones: banda energizada + resguardo abierto → posibilidad de contacto. El diagrama contiene hallazgos adicionales aún sin conexión causal verificada.",
@@ -109,11 +142,31 @@ const g2=group(root,"Personas y equipo investigador");const r2=grid(g2);
 [["Persona accidentada (identificación mínima)","worker"],["Puesto / actividad","job"],["Consecuencia conocida","consequence"],["Investigador responsable","investigator"],["Cargo o función","role"],["Delegados de prevención participantes","delegates"],["Integrantes del equipo de investigación","team"]].forEach(a=>field(r2,a[0],s.general[a[1]],v=>s.general[a[1]]=v));
 field(g2,"Atención inmediata y control de otros peligros",s.general.emergency,v=>s.general.emergency=v,"textarea");
 note(root,"Primero se brinda atención, se controla la exposición a nuevos peligros y se preserva la información posible. La calificación oficial del origen corresponde al INPSASEL (LOPCYMAT art. 76).");}
-function legal(root){pTitle(root,"2. Actuación legal y constancias","Registra si se efectuaron las comunicaciones y conserva sus constancias. La aplicación calcula los plazos máximos desde la fecha y hora que ingresaste, sin verificar que se haya notificado.");
-note(root,"No aguardes a completar la investigación para notificar o declarar. La atención y el control de peligros deben realizarse de inmediato. Las notificaciones y la investigación se gestionan oportunamente y según corresponda.");
-const defs=[["inpsasel","Notificación al INPSASEL","60 minutos","Reglamento Parcial, art. 83",1],["committee","Notificación al Comité de Seguridad y Salud Laboral (CSSL)","12 horas","Reglamento Parcial, art. 83",12],["union","Notificación al sindicato","12 horas","Reglamento Parcial, art. 83",12],["formal","Declaración formal ante INPSASEL","24 horas","LOPCYMAT, art. 73 y Reglamento Parcial, art. 84",24]];
-defs.forEach(([key,name,span,ref,hours])=>{const c=group(root,name+" · "+span);c.append(E("p","muted",ref));c.append(E("p","status","Fecha/hora límite de referencia: "+due(hours)));const row=grid(c);if(key==="union"){field(c,"¿Existe sindicato en la entidad?",s.legal.union.applies||"por_confirmar",v=>s.legal.union.applies=v,"select",[["por_confirmar","Por verificar"],["si","Sí"],["no","No (dejar constancia)"]])}field(row,"Fecha y hora de realización",s.legal[key].at,v=>s.legal[key].at=v,"datetime-local");field(row,"N.º de comprobante / medio / evidencia",s.legal[key].proof,v=>s.legal[key].proof=v)});
-const g=group(root,"Verificación del expediente de notificaciones");field(g,"Observaciones, dificultades o constancias adicionales",s.legal.notes,v=>s.legal.notes=v,"textarea");note(g,"Los campos sin constancia no prueban cumplimiento. Esta herramienta no envía notificaciones a INPSASEL, al Comité de Seguridad y Salud Laboral (CSSL) ni al sindicato.", "warn");const r=E("div","row");link(r,"LOPCYMAT arts. 73–76",URLs.ley);link(r,"Reglamento Parcial arts. 83–85",URLs.reg);g.append(r);}
+function legal(root){
+ pTitle(root,"2. Actuación legal y constancias","Registra por separado la notificación inicial y la declaración formal de cada destinatario. Las horas se interpretan como hora de Venezuela.");
+ note(root,"Atiende a las personas y controla los peligros de inmediato. Gestiona las comunicaciones sin esperar el informe técnico.");
+ const indicators=[];
+ const applicability=group(root,"Aplicabilidad sindical");
+ field(applicability,"¿Existe sindicato en la entidad?",s.legal.union.applies||"por_confirmar",v=>{s.legal.union.applies=v;indicators.forEach(update=>update())},"select",[["por_confirmar","Por verificar"],["si","Sí"],["no","No (dejar constancia)"]]);
+ for(const [article,title] of [[83,"Notificación inicial"],[84,"Declaración formal"]]){
+  const g=group(root,title);
+  for(const act of legalActs.filter(a=>a.article===article)){
+   const c=E("div","item");g.append(c);c.append(E("h4","",act.name+" · "+act.span));
+   c.append(E("p","muted","Reglamento Parcial, art. "+article+(article===84?" · LOPCYMAT, art. 73":"")));
+   c.append(E("p","muted","Fecha/hora límite de referencia: "+legalDeadline(legalResult(act).end)));
+   const status=E("p","status");status.setAttribute("role","status");c.append(status);
+   const update=()=>{const r=legalResult(act);status.textContent=r.timing+" · "+r.proofLabel+(r.applicability==="por_confirmar"?" · Aplicabilidad sindical por verificar":"");};
+   indicators.push(update);update();
+   const entry=s.legal[act.key]||(s.legal[act.key]={at:"",proof:""}), row=grid(c);
+   field(row,"Fecha y hora de realización",entry.at,v=>{entry.at=v;update()},"datetime-local");
+   field(row,"N.º de comprobante / medio / evidencia",entry.proof,v=>{entry.proof=v;update()});
+  }
+ }
+ const g=group(root,"Observaciones y constancias adicionales");
+ field(g,"Observaciones, dificultades o justificación de aplicabilidad",s.legal.notes,v=>s.legal.notes=v,"textarea");
+ note(g,"El estado de plazo compara las horas registradas. La constancia se muestra por separado. MAC documenta lo ingresado y la gestión de las comunicaciones se realiza por los canales oficiales.","warn");
+ const r=E("div","row");link(r,"LOPCYMAT arts. 73–76",URLs.ley);link(r,"Reglamento Parcial arts. 83–85",URLs.reg);g.append(r);
+}
 function listEdit(root,arr,heading,columns,blank){sectionHead(root,heading,()=>{arr.push(Object.assign({id:ident()},blank));save();render()});if(!arr.length){note(root,"Todavía no hay registros. Agrega uno y consigna la fuente y el momento en que se obtuvo.");return}arr.forEach((item,i)=>{const card=E("div","item");const hd=E("div","row between");hd.append(E("strong","",heading+" · "+(i+1)));hd.append(btn("Eliminar",()=>{if(confirm("¿Eliminar este registro?")){removeRecord(arr,i);save();render()}},"btn danger"));card.append(hd);const gg=grid(card);columns.forEach(c=>field(gg,c[0],item[c[1]],v=>item[c[1]]=v,c[2]||"text",c[3]));root.append(card)})}
 function removeRecord(arr,index){
  const removed=arr[index];arr.splice(index,1);
@@ -190,7 +243,12 @@ sectionHead(root,"Plan de medidas (F10 y F12)",()=>{s.actions.push({id:ident(),f
 const factOptions=[["","Selecciona un hecho causal"]].concat(s.facts.filter(f=>s.analyses[f.id]&&s.analyses[f.id].classification!=="no_causal").map(f=>[f.id,f.text.slice(0,100)]));
 s.actions.forEach((a,i)=>{const g=group(root,"Acción "+(i+1));const hd=E("div","row");hd.append(btn("Eliminar acción",()=>{if(confirm("¿Eliminar esta medida?")){s.actions.splice(i,1);save();render()}},"btn danger"));g.append(hd);const r=grid(g);field(r,"Hallazgo que controla",a.factId,v=>a.factId=v,"select",factOptions);field(r,"Tipo de medida",a.type,v=>a.type=v,"select",[["inmediata","Control inmediato"],["correctiva","Correctiva"],["preventiva","Preventiva"]]);field(g,"Acción técnica específica (qué se modificará)",a.description,v=>a.description=v,"textarea");const t=grid(g);field(t,"Responsable",a.owner,v=>a.owner=v);field(t,"Plazo comprometido",a.due,v=>a.due=v,"date");field(g,"Cómo se verificará su eficacia (prueba/indicador/criterio)",a.verification,v=>a.verification=v,"textarea");const u=grid(g);field(u,"Estado",a.status,v=>a.status=v,"select",[["pendiente","Pendiente"],["en_curso","En ejecución"],["ejecutada","Ejecutada (sin verificación)"],["eficaz","Eficacia comprobada"],["ineficaz","Medida ineficaz"]]);field(u,"Resultado de la verificación",a.result,v=>a.result=v,"textarea")});
 note(root,"Distingue «ejecutada» de «eficacia comprobada». Un control instalado no demuestra, por sí solo, que previene una recurrencia.");}
-function baseWarnings(){const w=[];if(!s.general.date||!s.general.time||!s.general.description)w.push("Faltan fecha, hora o descripción inicial.");for(const k of ["inpsasel","committee","union","formal"])if((k!=="union"||s.legal.union.applies!=="no")&&(!s.legal[k].at||!s.legal[k].proof))w.push("Sin constancia completa de "+({"inpsasel":"notificación a INPSASEL","committee":"notificación al Comité","union":"notificación al sindicato","formal":"declaración formal"}[k])+".");if(!s.evidence.length)w.push("No hay evidencias registradas.");if(!s.timeline.length)w.push("No hay cronología.");if(!s.facts.some(factSupported))w.push("No hay hechos verificados con evidencia de respaldo.");for(const f of s.facts.filter(f=>f.status==="verificado")){if(!factSupported(f))w.push("Hecho sin evidencia verificada: "+f.text.slice(0,75));}if(!graphData().some(e=>e.group==="edges"))w.push("El árbol no tiene relaciones causales.");if(!s.diagram.final)w.push("No se marcó un acontecimiento final.");if(!Object.values(s.analyses).some(x=>x.classification==="inmediata"))w.push("No se ha clasificado ninguna causa inmediata.");if(!Object.values(s.analyses).some(x=>x.classification==="basica"))w.push("No se ha clasificado ninguna causa básica.");if(!s.actions.length)w.push("No se han definido medidas.");return w}
+function baseWarnings(){const w=[];if(!s.general.date||!s.general.time||!s.general.description)w.push("Faltan fecha, hora o descripción inicial.");for(const act of legalActs){
+ const r=legalResult(act);
+ if(r.applicability==="no")continue;
+ if(r.timing!=="En plazo")w.push(act.name+": "+r.timing+".");
+ if(!r.proof)w.push(act.name+": sin constancia.");
+}if((s.legal.union.applies||"por_confirmar")==="por_confirmar")w.push("Aplicabilidad sindical por verificar.");if(!s.evidence.length)w.push("No hay evidencias registradas.");if(!s.timeline.length)w.push("No hay cronología.");if(!s.facts.some(factSupported))w.push("No hay hechos verificados con evidencia de respaldo.");for(const f of s.facts.filter(f=>f.status==="verificado")){if(!factSupported(f))w.push("Hecho sin evidencia verificada: "+f.text.slice(0,75));}if(!graphData().some(e=>e.group==="edges"))w.push("El árbol no tiene relaciones causales.");if(!s.diagram.final)w.push("No se marcó un acontecimiento final.");if(!Object.values(s.analyses).some(x=>x.classification==="inmediata"))w.push("No se ha clasificado ninguna causa inmediata.");if(!Object.values(s.analyses).some(x=>x.classification==="basica"))w.push("No se ha clasificado ninguna causa básica.");if(!s.actions.length)w.push("No se han definido medidas.");return w}
 function warnings(){
  const w=baseWarnings(),facts=new Map(s.facts.map(f=>[f.id,f])),nodes=graphData().filter(e=>e.group==="nodes"),integrity=graphIntegrity(),ids=integrity.nodeIds;
  if(s.diagram.final&&!ids.has(s.diagram.final))w.push("El acontecimiento final no existe en el árbol. Selecciónalo nuevamente.");
@@ -293,7 +351,10 @@ function renderReportHtml(options={}){
  const classes={inmediata:"Causa inmediata",basica:"Causa básica",raiz:"Posible causa raíz",contribuyente:"Factor contribuyente",no_causal:"No causal / contexto",sin_clasificar:"Sin clasificar"};
  const analyses=s.facts.filter(f=>s.analyses[f.id]).map(f=>{const a=s.analyses[f.id];return card(f.id+" · "+(classes[a.classification]||"Sin clasificar"),para("Hecho analizado",f.text)+details([["Sustento",a.certainty==="sustentado"&&!factSupported(f)?"Por revisar · sustento insuficiente":a.certainty]])+para("Justificación y evidencia",a.why)+para("Barrera o control evaluado",a.barrier));}).join("")||'<p>No constan valoraciones causales.</p>';
  const measures=s.actions.map((a,i)=>card(a.id+" · "+(a.type||"Medida"),para("Acción propuesta",a.description)+details([["Responsable",a.owner],["Plazo",a.due],["Estado",a.status]])+para("Hallazgo vinculado",(s.facts.find(f=>f.id===a.factId)||{}).text)+para("Verificación de eficacia",a.verification)+para("Resultado documentado",a.result))).join("")||'<p>No se han definido medidas.</p>';
- const legalInfo=[["INPSASEL · notificación inmediata",s.legal.inpsasel],["Comité de Seguridad y Salud Laboral",s.legal.committee],["Sindicato",s.legal.union],["Declaración formal",s.legal.formal]].map(([name,v])=>card(name,details([["Fecha / hora",v.at],["Constancia",v.proof],["Aplica",name==="Sindicato"?(v.applies||"por_confirmar"):"si"]]))).join("");
+ const legalInfo=legalActs.map(act=>{
+  const r=legalResult(act);
+  return card(act.name,details([["Fecha / hora",r.record.at],["Constancia",r.record.proof],["Fecha / hora límite",legalDeadline(r.end)],["Estado del plazo",r.timing],["Registro de constancia",r.proofLabel],["Aplica",r.applicability]]));
+ }).join("");
  const treeBlock=forPdf?(image?'<div class="report-tree-note"><strong>Árbol de causas: ver anexo gráfico al final del PDF.</strong><p>La lámina horizontal presenta los antecedentes verificados conectados al acontecimiento final. Los demás hechos permanecen identificados en el expediente.</p></div>':'<p>No hay un árbol exportable: verifica el acontecimiento final, sus antecedentes y los vínculos que los conectan.</p>'):
  '<figure class="report-diagram"><figcaption>Árbol de causas · representación de relaciones comprobadas</figcaption>'+(image?'<img src="'+image+'" alt="Árbol causal estructurado, hechos verificados y flechas hacia el acontecimiento final">':'<p>No hay un árbol exportable: registra y conecta hechos verificados.</p>')+'<p class="report-caption">Se muestran las conexiones con sustento suficiente. Los hechos aislados o pendientes de verificación no se convierten automáticamente en causas.</p></figure>';
  return '<article class="printreport">'+
@@ -444,6 +505,8 @@ description:"Caso ficticio. Durante una intervención de mantenimiento de una ba
 worker:"Trabajador A (identidad ficticia)",job:"Técnico de mantenimiento mecánico",consequence:"Lesión traumática de mano, caracterización clínica simulada",investigator:"Equipo docente de la Academia (ficticio)",role:"Servicio de Seguridad y Salud en el Trabajo",delegates:"Delegada de prevención (personaje ficticio)",team:"Servicio SST, mantenimiento y delegada de prevención",
 emergency:"09:01: parada de emergencia activada. 09:05: primeros auxilios y derivación. Equipo inmovilizado para preservar evidencias. Actuaciones simuladas."};
 d.legal={inpsasel:{at:"2026-10-20T09:22",proof:"SIM-INA-001 · CONSTANCIA FICTICIA, NO VÁLIDA"},committee:{at:"2026-10-20T11:15",proof:"SIM-CSSL-001 · Comunicación ficticia al Comité de Seguridad y Salud Laboral"},union:{at:"2026-10-20T11:20",proof:"SIM-SIN-001 · Comunicación ficticia al sindicato",applies:"si"},formal:{at:"2026-10-21T08:10",proof:"SIM-DECL-001 · Declaración de práctica, sin validez oficial"},
+formalCommittee:{at:"2026-10-21T08:15",proof:"SIM-DECL-CSSL · Declaración ficticia al CSSL"},
+formalUnion:{at:"2026-10-21T08:20",proof:"SIM-DECL-SIN · Declaración ficticia al sindicato"},
 notes:"Todas las horas y constancias son ficticias para ejercicios. La aplicación NO notifica a INPSASEL ni sustituye formularios oficiales."};
 d.evidence=[
 {id:"E01",type:"documento",source:"Orden de trabajo OT-135 (simulada)",date:"2026-10-20",description:"Orden de mantenimiento correctivo de transportador L2 emitida a las 08:10.",status:"verificada"},
@@ -531,7 +594,9 @@ function add(name,rows){const sheet=X.utils.aoa_to_sheet(rows.map(row=>row.map(e
 add("LEEME",[["Identificador",EXCEL_TAG],["Versión",EXCEL_VERSION],["Producto","MAC · Método del Árbol de Causas — Academia Movida de SST · Investigación de Accidentes de Trabajo"],["Objeto","Libro editable que conserva el expediente completo, incluido el árbol y los identificadores de hechos."],["Uso","Puedes editar y reimportar este libro desde mac.movidasst.com."],["Precaución","Conserva las hojas, encabezados y los ID para no romper vínculos entre evidencias, hechos, causas y medidas."],["Aviso","No es declaración oficial ante INPSASEL."],["Normas","LOPCYMAT · Reglamento Parcial · NT-04:2023, artículo 19"],["Confidencialidad","Protege la identidad y la información laboral/sanitaria de las personas involucradas."],["CSSL","Comité de Seguridad y Salud Laboral (CSSL), LOPCYMAT art. 46"],["Generación",new Date().toISOString()]]);
 for(const spec of bookSections){
 if(spec.kind==="kv"){add(spec.sheet,[["Campo","Valor"],...spec.entries.map(([label,key])=>[label,obj.general[key]??""])])}
-else if(spec.kind==="legal"){add(spec.sheet,[["Código","Actuación","Fecha y hora","Constancia","Aplica"],["inpsasel","Notificación a INPSASEL",obj.legal.inpsasel?.at||"",obj.legal.inpsasel?.proof||"","si"],["committee","Notificación al Comité de Seguridad y Salud Laboral (CSSL)",obj.legal.committee?.at||"",obj.legal.committee?.proof||"","si"],["union","Notificación al sindicato",obj.legal.union?.at||"",obj.legal.union?.proof||"",obj.legal.union?.applies||"por_confirmar"],["formal","Declaración formal ante INPSASEL",obj.legal.formal?.at||"",obj.legal.formal?.proof||"","si"],["notes","Observaciones",obj.legal.notes||"","",""]])}
+else if(spec.kind==="legal"){add(spec.sheet,[["Código","Actuación","Fecha y hora","Constancia","Aplica"],...legalActs.map(act=>{
+ const r=legalResult(act,obj);return [act.key,act.name,r.record.at||"",r.record.proof||"",r.applicability];
+}),["notes","Observaciones",obj.legal.notes||"","",""]])}
 else if(spec.kind==="collection"){add(spec.sheet,[spec.cols.map(c=>c[0]),...(obj[spec.key]||[]).map(x=>spec.cols.map(c=>x[c[1]]??""))])}
 else if(spec.kind==="nodes"){add(spec.sheet,[["ID de nodo / hecho","Texto del nodo","Posición X","Posición Y","Suceso final"],...(obj.diagram.cytoscape||[]).filter(x=>x.group==="nodes").map(n=>[n.data.id,n.data.label??"",n.position?.x??0,n.position?.y??0,n.data.id===obj.diagram.final?"SI":"NO"])])}
 else if(spec.kind==="edges"){add(spec.sheet,[["ID de relación","ID causa","ID efecto","Tipo de relación"],...(obj.diagram.cytoscape||[]).filter(x=>x.group==="edges").map(e=>[e.data.id||ident(),e.data.source,e.data.target,e.data.relacion||"cadena"])])}
@@ -545,7 +610,7 @@ function rows(name){const sheet=book.Sheets[name];if(!sheet)throw Error("Falta l
 const info=rows("LEEME");if(info[0]?.[1]!==EXCEL_TAG||info[1]?.[1]!==EXCEL_VERSION)throw Error("Este Excel no es un expediente MAC compatible. Descarga primero una plantilla desde MAC.");
 const obj=initial();
 const gen=rows("GENERAL");const dict=Object.fromEntries(gen.slice(1).map(row=>[row[0],row[1]??""]));for(const sp of bookSections.filter(x=>x.kind==="kv"))for(const [label,key]of sp.entries)obj.general[key]=dict[label]??"";
-const leg=rows("ACTUACIONES");for(const row of leg.slice(1)){const key=row[0];if(["inpsasel","committee","union","formal"].includes(key)){obj.legal[key]={at:row[2]||"",proof:row[3]||""};if(key==="union")obj.legal.union.applies=row[4]||"por_confirmar"}else if(key==="notes")obj.legal.notes=row[2]||""}
+const leg=rows("ACTUACIONES");for(const row of leg.slice(1)){const key=row[0];if(legalActs.some(act=>act.key===key)){obj.legal[key]={at:row[2]||"",proof:row[3]||""};if(key==="union")obj.legal.union.applies=row[4]||"por_confirmar"}else if(key==="notes")obj.legal.notes=row[2]||""}
 for(const spec of bookSections.filter(x=>x.kind==="collection")){const rr=rows(spec.sheet);const head=rr[0]||[];if(spec.cols.some((c,i)=>head[i]!==c[0]))throw Error("Los encabezados de "+spec.sheet+" fueron modificados. Mantén sus nombres y orden.");obj[spec.key]=rr.slice(1).filter(row=>row.some(x=>x!=="")).map((row,i)=>{const rec={};spec.cols.forEach((c,j)=>rec[c[1]]=row[j]||"");if(!rec.id)rec.id=ident();return rec})}
 const nodeRows=rows("NODOS_ARBOL").slice(1),edgeRows=rows("RELACIONES").slice(1);
 const nodeIds=new Set(),factIds=new Set(obj.facts.map(x=>x.id));

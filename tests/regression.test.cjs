@@ -63,3 +63,34 @@ test('the final event alone does not produce an exportable causal tree',()=>{
  data.diagram.cytoscape=data.diagram.cytoscape.filter(e=>e.group!=='edges'||e.data.target!==data.diagram.final);
  assert.equal(api.captureDiagram(),'');
 });
+
+test('legal review distinguishes deadlines, missing proof and invalid timestamps',()=>{
+ const {api}=harness(), data=api.demo();api.setState(data);
+ data.legal.inpsasel.at='2026-10-20T10:00';
+ assert.ok(!api.warnings().some(w=>w.startsWith('Notificación al INPSASEL:')));
+ data.legal.inpsasel.at='2026-10-20T10:01';data.legal.inpsasel.proof='   ';
+ assert.ok(api.warnings().includes('Notificación al INPSASEL: Fuera de plazo.'));
+ assert.ok(api.warnings().includes('Notificación al INPSASEL: sin constancia.'));
+ data.legal.inpsasel.at='2026-10-20T08:59';
+ assert.ok(api.warnings().includes('Notificación al INPSASEL: Fecha anterior al accidente.'));
+ data.legal.inpsasel.at='2026-02-30T09:20';
+ assert.ok(api.warnings().includes('Notificación al INPSASEL: Fecha de realización inválida.'));
+ data.general.date='';
+ assert.ok(api.warnings().includes('Declaración formal al CSSL: Sin fecha y hora válidas del accidente.'));
+});
+
+test('legal declarations roundtrip by recipient and preserve older Excel records',()=>{
+ const {api}=harness(), data=api.demo();
+ const roundtrip=api.workbookToState(api.buildWorkbook(data));
+ assert.equal(roundtrip.legal.formalCommittee.proof,data.legal.formalCommittee.proof);
+ assert.equal(roundtrip.legal.formalUnion.at,data.legal.formalUnion.at);
+ const old=api.buildWorkbook(data);
+ old.Sheets.ACTUACIONES.rows=old.Sheets.ACTUACIONES.rows.filter(r=>!['formalCommittee','formalUnion'].includes(r[0]));
+ const imported=api.workbookToState(old);api.setState(imported);
+ assert.equal(imported.legal.formal.proof,data.legal.formal.proof);
+ assert.equal(imported.legal.formalCommittee.at,'');
+ assert.equal(imported.legal.formalUnion.proof,'');
+ assert.match(api.renderReportHtml({forPdf:true}),/Declaración formal al CSSL/);
+ imported.legal.union.applies='no';
+ assert.ok(!api.warnings().some(w=>/al sindicato:/.test(w)));
+});
