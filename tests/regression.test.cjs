@@ -27,3 +27,39 @@ test('report uses stable IDs after a deletion and escapes markup',()=>{const {ap
 test('every partial form protects against unconfirmed demo replacement',()=>{const {api}=harness();for(const field of ['company','worker','place','investigator']){const data=api.initial();data.general[field]='dato';api.setState(data);assert.ok(api.isWorkInProgress())}const data=api.initial();api.setState(data);assert.equal(api.isWorkInProgress(),false);data.legal.notes='constancia';assert.ok(api.isWorkInProgress())});
 test('encrypted storage roundtrips and serializes rapid saves',async()=>{const {api,memory}=harness();await api.configure();const data=api.demo();api.setState(data);const first=api.save();data.general.worker='ÚLTIMO VALOR CONFIDENCIAL';const last=api.save();await Promise.all([first,last]);const disk=memory.get('test-store');assert.ok(!disk.includes('CONFIDENCIAL'));assert.equal(JSON.parse(disk).encrypted,1);api.setState(api.initial());await api.load();assert.equal(api.getState().general.worker,'ÚLTIMO VALOR CONFIDENCIAL')});
 test('corrupt storage is preserved rather than replaced with demo',async()=>{const {api,memory}=harness();await api.configure();memory.set('test-store','{"encrypted":1,"iv":"broken","data":"broken"}');await assert.rejects(api.load());assert.match(memory.get('test-store'),/broken/)});
+
+test('contradictory evidence keeps the fact and its conjunction out of the verified report tree',()=>{
+ const {api,labels}=harness();
+ const data=api.demo();api.setState(data);
+ assert.ok(api.captureDiagram());assert.ok(labels.includes('CONJUNCIÓN'));
+ labels.length=0;
+ const fact=data.facts.find(f=>f.id==='H02');
+ const evidence=data.evidence.find(e=>e.id===fact.evidenceId);
+ evidence.status='contradictoria';
+ assert.ok(api.warnings().some(w=>w.includes('Nodo sin hecho verificado con evidencia: H02')));
+ assert.ok(api.warnings().some(w=>w.includes('Conjunción incompleta')));
+ assert.ok(api.captureDiagram());
+ assert.ok(!labels.some(t=>t.startsWith('H02 ·')));
+ assert.ok(!labels.includes('CONJUNCIÓN'));
+ assert.match(api.renderReportHtml({forPdf:true}),/Por revisar · sustento insuficiente/);
+ assert.equal(fact.status,'verificado');
+ evidence.status='verificada';labels.length=0;
+ assert.ok(api.captureDiagram());assert.ok(labels.includes('CONJUNCIÓN'));
+});
+
+test('a conjunction with one remaining antecedent is not exported as a verified relation',()=>{
+ const {api,labels}=harness();
+ const data=api.demo();api.setState(data);
+ const removed=data.diagram.cytoscape.find(e=>e.group==='edges'&&e.data.relacion==='conjuncion');
+ data.diagram.cytoscape=data.diagram.cytoscape.filter(e=>e!==removed);
+ assert.ok(api.warnings().some(w=>w.includes('Conjunción incompleta')));
+ assert.ok(api.captureDiagram());
+ assert.ok(!labels.includes('CONJUNCIÓN'));
+});
+
+test('the final event alone does not produce an exportable causal tree',()=>{
+ const {api}=harness();
+ const data=api.demo();api.setState(data);
+ data.diagram.cytoscape=data.diagram.cytoscape.filter(e=>e.group!=='edges'||e.data.target!==data.diagram.final);
+ assert.equal(api.captureDiagram(),'');
+});

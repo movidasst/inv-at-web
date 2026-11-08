@@ -129,13 +129,30 @@ sectionHead(root,"Listado de hechos (instrumento F08)",()=>{s.facts.push({id:ide
 if(!s.facts.length)note(root,"Agrega los hechos uno a uno. Por ejemplo: «La banda transportadora estaba en movimiento al momento del contacto»; evita «El trabajador fue imprudente».");
 s.facts.forEach((f,i)=>{const c=E("div","item");const hd=E("div","row between");hd.append(E("strong","", f.id));hd.append(btn("Eliminar",()=>{if(confirm("¿Eliminar el hecho y su nodo en el árbol?")){s.facts.splice(i,1);if(s.diagram.final===f.id)s.diagram.final="";s.diagram.cytoscape=s.diagram.cytoscape.filter(x=>!(x.group==="nodes"&&x.data.id===f.id)&&!(x.group==="edges"&&(x.data.source===f.id||x.data.target===f.id)));delete s.analyses[f.id];s.actions=s.actions.filter(a=>a.factId!==f.id);save();render()}},"btn danger"));c.append(hd);field(c,"Enunciado objetivo del hecho",f.text,v=>{f.text=v;const n=s.diagram.cytoscape.find(x=>x.group==="nodes"&&x.data.id===f.id);if(n)n.data.label=v},"textarea");const row=grid(c);field(row,"Evidencia de respaldo",f.evidenceId,v=>f.evidenceId=v,"select",[["","Sin fuente asociada"]].concat(s.evidence.map((ev,j)=>[ev.id,ev.id+" · "+(ev.source||ev.type)])));field(row,"Estado del hecho",f.status,v=>f.status=v,"select",[["pendiente","Por verificar"],["verificado","Verificado"],["descartado","Descartado"]]);root.append(c)});
 note(root,"Solo los hechos verificados deben incorporarse como hechos causales definitivos. La aplicación permite diagramas de trabajo preliminares, pero advertirá sobre elementos incompletos.","warn");}
+function factSupported(f){
+ return Boolean(f?.status==="verificado"&&String(f.text||"").trim()&&s.evidence.some(e=>e.id===f.evidenceId&&e.status==="verificada"));
+}
+function graphIntegrity(entries=graphData()){
+ const supported=new Set(s.facts.filter(factSupported).map(f=>f.id));
+ const nodeIds=new Set(entries.filter(e=>e.group==="nodes").map(e=>e.data.id));
+ const edges=entries.filter(e=>e.group==="edges");
+ const endpoints=e=>nodeIds.has(e.data.source)&&nodeIds.has(e.data.target)&&supported.has(e.data.source)&&supported.has(e.data.target);
+ const conjunctions=new Map();
+ for(const e of edges.filter(e=>e.data.relacion==="conjuncion")){
+  if(!conjunctions.has(e.data.target))conjunctions.set(e.data.target,[]);
+  conjunctions.get(e.data.target).push(e);
+ }
+ const incomplete=new Set([...conjunctions].filter(([,group])=>new Set(group.map(e=>e.data.source)).size<2||group.some(e=>!endpoints(e))).map(([id])=>id));
+ const usable=edges.filter(e=>endpoints(e)&&!(e.data.relacion==="conjuncion"&&incomplete.has(e.data.target)));
+ return {supported,nodeIds,incomplete,usable};
+}
 function graphData(){return Array.isArray(s.diagram.cytoscape)?s.diagram.cytoscape:[]}
 function diagram(root){pTitle(root,"5. Árbol de causas","Construye relaciones entre hechos comprobados. Selecciona primero la causa (antecedente) y después el efecto (consecuente). Método técnico OIT, no formulario oficial.");
 note(root,"Los nodos iniciales del árbol NO son automáticamente causas raíz. Su interpretación se realiza en la etapa siguiente con evidencias y justificación. No confundas una secuencia temporal con una relación causal.");
 const tools=E("div","row");let nextRelation="cadena";field(tools,"Relación al conectar",nextRelation,v=>nextRelation=v,"select",[["cadena","Cadena causal"],["conjuncion","Conjunción: antecedente necesario junto con otros"]]);const info=E("span","muted","Selecciona dos nodos para conectarlos: causa → efecto.");tools.append(btn("Organizar árbol",()=>{if(cy){cy.layout({name:window.cytoscapeDagre?"dagre":"breadthfirst",rankDir:"LR",animate:false}).run();save()}}));tools.append(btn("Marcar hecho final",()=>{if(!cy)return;const n=cy.nodes(":selected").first();if(!n.length){alert("Selecciona el nodo del acontecimiento final.");return}s.diagram.final=n.id();save();refreshGraph()}));tools.append(btn("Eliminar selección",()=>{if(!cy)return;const v=cy.$(":selected");if(v.length&&confirm("¿Eliminar estos elementos del diagrama?")){if(v.some(el=>el.id()===s.diagram.final))s.diagram.final="";cy.remove(v);save();refreshGraph()}},"btn danger"));root.append(tools);
 const wrap=E("div","grid-diagram");const left=E("div","facts-panel");left.append(E("h3","", "Hechos para incorporar"));const curr=graphData().filter(n=>n.group==="nodes").map(n=>n.data.id);
-s.facts.filter(f=>f.status==="verificado"&&f.text.trim()).forEach(f=>{const b=btn("＋ "+f.text,()=>{if(cy&&cy.$id(f.id).empty()){cy.add({group:"nodes",data:{id:f.id,label:f.text}});cy.layout({name:window.cytoscapeDagre?"dagre":"grid",rankDir:"LR",animate:false}).run();save();refreshGraph()}},"factbtn");b.disabled=curr.includes(f.id);left.append(b)});if(!s.facts.some(f=>f.status==="verificado"))left.append(E("p","muted","Primero verifica hechos en la etapa anterior."));wrap.append(left);const pane=E("div","canvas-wrap"), canvas=E("div","canvas");canvas.id="graph";pane.append(canvas);wrap.append(pane);root.append(wrap);
-const t=E("p","muted","Sugerencia: marca el acontecimiento final, trabaja retrospectivamente e incorpora antecedentes necesarios. Para representar una conjunción, conecta todos los antecedentes relevantes con el mismo consecuente y explícalo en el análisis.");root.append(t);
+s.facts.filter(factSupported).forEach(f=>{const b=btn("＋ "+f.text,()=>{if(cy&&cy.$id(f.id).empty()){cy.add({group:"nodes",data:{id:f.id,label:f.text}});cy.layout({name:window.cytoscapeDagre?"dagre":"grid",rankDir:"LR",animate:false}).run();save();refreshGraph()}},"factbtn");b.disabled=curr.includes(f.id);left.append(b)});if(!s.facts.some(factSupported))left.append(E("p","muted","Primero verifica hechos con una evidencia verificada."));wrap.append(left);const pane=E("div","canvas-wrap"), canvas=E("div","canvas");canvas.id="graph";pane.append(canvas);wrap.append(pane);root.append(wrap);
+const t=E("p","muted","Los nodos en rojo y los vínculos punteados están por revisar. Sugerencia: marca el acontecimiento final, trabaja retrospectivamente e incorpora antecedentes necesarios. Para representar una conjunción, conecta todos los antecedentes relevantes con el mismo consecuente y explícalo en el análisis.");root.append(t);
 if(typeof window.cytoscape!=="function"){note(root,"No se pudo cargar la biblioteca del diagrama. Comprueba la conexión a internet.", "error");return}
 let nodes=graphData().filter(x=>x.group==="nodes"),edges=graphData().filter(x=>x.group==="edges");
 cy=cytoscape({container:canvas,elements:graphData(),style:graphStyle(),layout:{name:"preset"},wheelSensitivity:.16,minZoom:.2,maxZoom:2});
@@ -145,7 +162,21 @@ cy.on("tap",ev=>{if(ev.target===cy&&selected){selected.removeClass("selected-cau
 cy.on("dragfree remove data",()=>save());
 refreshGraph();
 function hasPath(from,to){const seen=new Set(),q=[from];while(q.length){const x=q.shift();if(x===to)return true;if(seen.has(x))continue;seen.add(x);cy.edges().filter(e=>e.data("source")===x).forEach(e=>q.push(e.data("target")))}return false}
-function refreshGraph(){if(cy){cy.style().selector("node").style({"border-width":2}).update();cy.nodes().forEach(n=>{const verified=s.facts.find(f=>f.id===n.id())?.status==="verificado";n.style({"border-color":verified?(n.id()===s.diagram.final?"#ffb600":"#007b85"):"#b42318","background-color":verified?"#e4f2f3":"#fff0ed"})});cy.fit(undefined,55)}}
+function refreshGraph(){
+ if(!cy)return;
+ const integrity=graphIntegrity(cy.elements().jsons());
+ const validIds=new Set(integrity.usable.map(e=>e.data.id));
+ cy.nodes().forEach(n=>{
+  const valid=integrity.supported.has(n.id());
+  n.style({"label":valid?n.data("label"):"Por revisar · "+n.data("label"),"border-color":valid?(n.id()===s.diagram.final?"#ffb600":"#007b85"):"#b42318","background-color":valid?"#e4f2f3":"#fff0ed"});
+ });
+ cy.edges().forEach(edge=>{
+  const valid=validIds.has(edge.id()), color=valid?"#007b85":"#b42318";
+  const pending=edge.data("relacion")==="conjuncion"&&integrity.incomplete.has(edge.data("target"))?"Conjunción por revisar":"Vínculo por revisar";
+  edge.style({"label":valid?(edge.data("relacionTexto")||""):pending,"line-style":valid?"solid":"dashed","line-color":color,"target-arrow-color":color});
+ });
+ cy.fit(undefined,55);
+}
 }
 function graphStyle(){return [{selector:"node",style:{"label":"data(label)","background-color":"#e4f2f3","border-color":"#007b85","border-width":2,"shape":"round-rectangle","width":"label","height":"label","padding":"13px","font-size":"13px","text-wrap":"wrap","text-max-width":"190px","color":"#00205b","text-valign":"center","text-halign":"center"}},{selector:"edge",style:{"width":2,"line-color":"#007b85","target-arrow-color":"#007b85","target-arrow-shape":"triangle","curve-style":"bezier","arrow-scale":1.15,"label":"data(relacionTexto)","font-size":"10px","text-rotation":"autorotate","text-background-color":"#ffffff","text-background-opacity":1}},{selector:".selected-cause",style:{"border-width":4,"border-color":"#ffb600"}}]}
 function analysis(root){pTitle(root,"6. Análisis causal y barreras","NT-04:2023, artículo 19, numeral 1.1.2: determinar causas inmediatas y básicas. El análisis de causas raíz es una profundización técnica complementaria.");
@@ -159,30 +190,31 @@ sectionHead(root,"Plan de medidas (F10 y F12)",()=>{s.actions.push({id:ident(),f
 const factOptions=[["","Selecciona un hecho causal"]].concat(s.facts.filter(f=>s.analyses[f.id]&&s.analyses[f.id].classification!=="no_causal").map(f=>[f.id,f.text.slice(0,100)]));
 s.actions.forEach((a,i)=>{const g=group(root,"Acción "+(i+1));const hd=E("div","row");hd.append(btn("Eliminar acción",()=>{if(confirm("¿Eliminar esta medida?")){s.actions.splice(i,1);save();render()}},"btn danger"));g.append(hd);const r=grid(g);field(r,"Hallazgo que controla",a.factId,v=>a.factId=v,"select",factOptions);field(r,"Tipo de medida",a.type,v=>a.type=v,"select",[["inmediata","Control inmediato"],["correctiva","Correctiva"],["preventiva","Preventiva"]]);field(g,"Acción técnica específica (qué se modificará)",a.description,v=>a.description=v,"textarea");const t=grid(g);field(t,"Responsable",a.owner,v=>a.owner=v);field(t,"Plazo comprometido",a.due,v=>a.due=v,"date");field(g,"Cómo se verificará su eficacia (prueba/indicador/criterio)",a.verification,v=>a.verification=v,"textarea");const u=grid(g);field(u,"Estado",a.status,v=>a.status=v,"select",[["pendiente","Pendiente"],["en_curso","En ejecución"],["ejecutada","Ejecutada (sin verificación)"],["eficaz","Eficacia comprobada"],["ineficaz","Medida ineficaz"]]);field(u,"Resultado de la verificación",a.result,v=>a.result=v,"textarea")});
 note(root,"Distingue «ejecutada» de «eficacia comprobada». Un control instalado no demuestra, por sí solo, que previene una recurrencia.");}
-function baseWarnings(){const w=[];if(!s.general.date||!s.general.time||!s.general.description)w.push("Faltan fecha, hora o descripción inicial.");for(const k of ["inpsasel","committee","union","formal"])if((k!=="union"||s.legal.union.applies!=="no")&&(!s.legal[k].at||!s.legal[k].proof))w.push("Sin constancia completa de "+({"inpsasel":"notificación a INPSASEL","committee":"notificación al Comité","union":"notificación al sindicato","formal":"declaración formal"}[k])+".");if(!s.evidence.length)w.push("No hay evidencias registradas.");if(!s.timeline.length)w.push("No hay cronología.");if(!s.facts.some(f=>f.status==="verificado"))w.push("No hay hechos verificados.");for(const f of s.facts.filter(f=>f.status==="verificado")){const ev=s.evidence.find(e=>e.id===f.evidenceId);if(!ev||ev.status!=="verificada")w.push("Hecho sin evidencia verificada: "+f.text.slice(0,75));}if(!graphData().some(e=>e.group==="edges"))w.push("El árbol no tiene relaciones causales.");if(!s.diagram.final)w.push("No se marcó un acontecimiento final.");if(!Object.values(s.analyses).some(x=>x.classification==="inmediata"))w.push("No se ha clasificado ninguna causa inmediata.");if(!Object.values(s.analyses).some(x=>x.classification==="basica"))w.push("No se ha clasificado ninguna causa básica.");if(!s.actions.length)w.push("No se han definido medidas.");return w}
+function baseWarnings(){const w=[];if(!s.general.date||!s.general.time||!s.general.description)w.push("Faltan fecha, hora o descripción inicial.");for(const k of ["inpsasel","committee","union","formal"])if((k!=="union"||s.legal.union.applies!=="no")&&(!s.legal[k].at||!s.legal[k].proof))w.push("Sin constancia completa de "+({"inpsasel":"notificación a INPSASEL","committee":"notificación al Comité","union":"notificación al sindicato","formal":"declaración formal"}[k])+".");if(!s.evidence.length)w.push("No hay evidencias registradas.");if(!s.timeline.length)w.push("No hay cronología.");if(!s.facts.some(factSupported))w.push("No hay hechos verificados con evidencia de respaldo.");for(const f of s.facts.filter(f=>f.status==="verificado")){if(!factSupported(f))w.push("Hecho sin evidencia verificada: "+f.text.slice(0,75));}if(!graphData().some(e=>e.group==="edges"))w.push("El árbol no tiene relaciones causales.");if(!s.diagram.final)w.push("No se marcó un acontecimiento final.");if(!Object.values(s.analyses).some(x=>x.classification==="inmediata"))w.push("No se ha clasificado ninguna causa inmediata.");if(!Object.values(s.analyses).some(x=>x.classification==="basica"))w.push("No se ha clasificado ninguna causa básica.");if(!s.actions.length)w.push("No se han definido medidas.");return w}
 function warnings(){
- const w=baseWarnings(),facts=new Map(s.facts.map(f=>[f.id,f])),nodes=graphData().filter(e=>e.group==="nodes"),ids=new Set(nodes.map(n=>n.data.id));
+ const w=baseWarnings(),facts=new Map(s.facts.map(f=>[f.id,f])),nodes=graphData().filter(e=>e.group==="nodes"),integrity=graphIntegrity(),ids=integrity.nodeIds;
  if(s.diagram.final&&!ids.has(s.diagram.final))w.push("El acontecimiento final no existe en el árbol. Selecciónalo nuevamente.");
- for(const n of nodes){const f=facts.get(n.data.id);if(!f||f.status!=="verificado")w.push("Nodo sin hecho verificado: "+n.data.id)}
+ for(const n of nodes){const f=facts.get(n.data.id);if(!factSupported(f))w.push("Nodo sin hecho verificado con evidencia: "+n.data.id)}
  for(const f of s.facts)if(f.evidenceId&&!s.evidence.some(e=>e.id===f.evidenceId))w.push("Referencia de evidencia inexistente: "+f.id);
- for(const e of graphData().filter(e=>e.group==="edges")){if(!ids.has(e.data.source)||!ids.has(e.data.target))w.push("Relación con nodo inexistente: "+e.data.id);if(e.data.relacion==="conjuncion"&&graphData().filter(x=>x.group==="edges"&&x.data.target===e.data.target&&x.data.relacion==="conjuncion").length<2)w.push("Conjunción incompleta: "+e.data.target)}
+ for(const e of graphData().filter(e=>e.group==="edges"))if(!ids.has(e.data.source)||!ids.has(e.data.target))w.push("Relación con nodo inexistente: "+e.data.id);
+ for(const id of integrity.incomplete)w.push("Conjunción incompleta o sin sustento suficiente: "+id);
+ if(graphData().some(e=>e.group==="edges")&&!integrity.usable.length)w.push("No hay vínculos con sustento suficiente para exportar.");
  for(const a of s.actions){if(!a.factId||!facts.has(a.factId)||!a.description||!a.owner||!a.due||!a.verification)w.push("Medida incompleta: "+a.id);if(a.status==="eficaz"&&!a.result)w.push("Medida declarada eficaz sin resultado documentado: "+a.id)}
  return [...new Set(w)];
 }
 function captureDiagram(){
- const entries=graphData(), allNodes=entries.filter(e=>e.group==="nodes"&&e.data?.id&&s.facts.some(f=>f.id===e.data.id&&f.status==="verificado")), allEdges=entries.filter(e=>e.group==="edges");
- if(!allNodes.length)return "";
+ const entries=graphData(),integrity=graphIntegrity(entries);
+ const allNodes=entries.filter(e=>e.group==="nodes"&&integrity.supported.has(e.data.id));
+ if(!integrity.supported.has(s.diagram.final)||!integrity.nodeIds.has(s.diagram.final))return "";
  try{
-  const nodeMap=new Map(allNodes.map(e=>[e.data.id,e]));
-  const verified=new Set(s.facts.filter(f=>f.status==="verificado").map(f=>f.id));
-  const edges=allEdges.filter(e=>nodeMap.has(e.data.source)&&nodeMap.has(e.data.target)&&(verified.has(e.data.source)&&verified.has(e.data.target)));
-  if(!nodeMap.has(s.diagram.final))return "";
+  const edges=integrity.usable;
   const finalId=s.diagram.final;
   const included=new Set([finalId]), queue=[finalId];
   while(queue.length){const target=queue.shift();for(const e of edges.filter(x=>x.data.target===target)){if(!included.has(e.data.source)){included.add(e.data.source);queue.push(e.data.source)}}}
   // Only verified ancestors of the explicitly selected final event belong to the report tree.
   const selected=allNodes.filter(n=>included.has(n.data.id));
   const links=edges.filter(e=>included.has(e.data.source)&&included.has(e.data.target));
+  if(!links.length)return "";
   const depth=new Map([[finalId,0]]);
   for(let i=0;i<selected.length;i++){let changed=false;for(const e of links){const t=depth.get(e.data.target);if(t!==undefined&&(!depth.has(e.data.source)||depth.get(e.data.source)<t+1)){depth.set(e.data.source,t+1);changed=true}}if(!changed)break}
   for(const n of selected)if(!depth.has(n.data.id))depth.set(n.data.id,1);
@@ -257,13 +289,13 @@ function renderReportHtml(options={}){
  const section=(n,title,content)=>'<section class="report-section"><h2><span class="report-section-number">'+n+'</span>'+esc(title)+'</h2>'+content+'</section>';
  const evidence=s.evidence.map((e,i)=>card(e.id+" · "+(e.source||"Evidencia"),details([["Tipo",e.type],["Fecha",e.date],["Estado",e.status]])+para("Descripción y alcance",e.description))).join("")||'<p>No se han registrado evidencias.</p>';
  const chronology=s.timeline.map((t,i)=>card(t.id+" · "+(t.when||"Momento sin consignar"),para("Acontecimiento",t.text)+para("Respaldo",t.source))).join("")||'<p>No consta cronología.</p>';
- const facts=s.facts.map((f,i)=>card(f.id+(f.id===s.diagram.final?" · ACONTECIMIENTO FINAL":""),para("Hecho",f.text)+details([["Estado",f.status],["Evidencia asociada",(s.evidence.find(e=>e.id===f.evidenceId)||{}).source||"No vinculada"]]))).join("")||'<p>No constan hechos.</p>';
+ const facts=s.facts.map((f,i)=>card(f.id+(f.id===s.diagram.final?" · ACONTECIMIENTO FINAL":""),para("Hecho",f.text)+details([ ["Estado",f.status==="verificado"&&!factSupported(f)?"Por revisar · sustento insuficiente":f.status],["Evidencia asociada",(s.evidence.find(e=>e.id===f.evidenceId)||{}).source||"No vinculada"]]))).join("")||'<p>No constan hechos.</p>';
  const classes={inmediata:"Causa inmediata",basica:"Causa básica",raiz:"Posible causa raíz",contribuyente:"Factor contribuyente",no_causal:"No causal / contexto",sin_clasificar:"Sin clasificar"};
- const analyses=s.facts.filter(f=>s.analyses[f.id]).map(f=>{const a=s.analyses[f.id];return card(f.id+" · "+(classes[a.classification]||"Sin clasificar"),para("Hecho analizado",f.text)+details([["Sustento",a.certainty]])+para("Justificación y evidencia",a.why)+para("Barrera o control evaluado",a.barrier));}).join("")||'<p>No constan valoraciones causales.</p>';
+ const analyses=s.facts.filter(f=>s.analyses[f.id]).map(f=>{const a=s.analyses[f.id];return card(f.id+" · "+(classes[a.classification]||"Sin clasificar"),para("Hecho analizado",f.text)+details([["Sustento",a.certainty==="sustentado"&&!factSupported(f)?"Por revisar · sustento insuficiente":a.certainty]])+para("Justificación y evidencia",a.why)+para("Barrera o control evaluado",a.barrier));}).join("")||'<p>No constan valoraciones causales.</p>';
  const measures=s.actions.map((a,i)=>card(a.id+" · "+(a.type||"Medida"),para("Acción propuesta",a.description)+details([["Responsable",a.owner],["Plazo",a.due],["Estado",a.status]])+para("Hallazgo vinculado",(s.facts.find(f=>f.id===a.factId)||{}).text)+para("Verificación de eficacia",a.verification)+para("Resultado documentado",a.result))).join("")||'<p>No se han definido medidas.</p>';
  const legalInfo=[["INPSASEL · notificación inmediata",s.legal.inpsasel],["Comité de Seguridad y Salud Laboral",s.legal.committee],["Sindicato",s.legal.union],["Declaración formal",s.legal.formal]].map(([name,v])=>card(name,details([["Fecha / hora",v.at],["Constancia",v.proof],["Aplica",name==="Sindicato"?(v.applies||"por_confirmar"):"si"]]))).join("");
- const treeBlock=forPdf?(image?'<div class="report-tree-note"><strong>Árbol de causas: ver anexo gráfico al final del PDF.</strong><p>La lámina horizontal presenta los antecedentes verificados conectados al acontecimiento final. Los demás hechos permanecen identificados en el expediente.</p></div>':'<p>No hay un árbol exportable: verifica los hechos y selecciona un acontecimiento final existente.</p>'):
- '<figure class="report-diagram"><figcaption>Árbol de causas · representación de relaciones comprobadas</figcaption>'+(image?'<img src="'+image+'" alt="Árbol causal estructurado, hechos verificados y flechas hacia el acontecimiento final">':'<p>No hay un árbol exportable: registra y conecta hechos verificados.</p>')+'<p class="report-caption">Se muestran las conexiones causales registradas. Los hechos aislados o pendientes de verificación no se convierten automáticamente en causas.</p></figure>';
+ const treeBlock=forPdf?(image?'<div class="report-tree-note"><strong>Árbol de causas: ver anexo gráfico al final del PDF.</strong><p>La lámina horizontal presenta los antecedentes verificados conectados al acontecimiento final. Los demás hechos permanecen identificados en el expediente.</p></div>':'<p>No hay un árbol exportable: verifica el acontecimiento final, sus antecedentes y los vínculos que los conectan.</p>'):
+ '<figure class="report-diagram"><figcaption>Árbol de causas · representación de relaciones comprobadas</figcaption>'+(image?'<img src="'+image+'" alt="Árbol causal estructurado, hechos verificados y flechas hacia el acontecimiento final">':'<p>No hay un árbol exportable: registra y conecta hechos verificados.</p>')+'<p class="report-caption">Se muestran las conexiones con sustento suficiente. Los hechos aislados o pendientes de verificación no se convierten automáticamente en causas.</p></figure>';
  return '<article class="printreport">'+
  '<header class="report-cover"><div class="report-brand">ACADEMIA MOVIDA DE SST <span>MAC · INVESTIGACIÓN TÉCNICA</span></div><div class="report-cover-body"><span class="report-eyebrow">INFORME TÉCNICO DE INVESTIGACIÓN</span><h1>Accidente de trabajo</h1><p class="report-subtitle">Método del Árbol de Causas · Evidencias, causalidad, barreras y prevención</p>'+
  details([["Código de expediente",s.general.code],["Entidad",s.general.company],["Fecha del evento",s.general.date],["Lugar",s.general.place]])+
