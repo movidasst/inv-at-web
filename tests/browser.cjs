@@ -46,7 +46,7 @@ const {chromium}=require('playwright');
  await page.locator('#import').setInputFiles({name:'long.xlsx',buffer:Buffer.from(longBook),mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});await page.waitForSelector('#reportPreview');
  const longPromise=page.waitForEvent('download');await page.getByRole('button',{name:'Descargar PDF',exact:true}).click();await(await longPromise).saveAs(path.join(artifacts,'long.pdf'));
  await page.waitForFunction(()=>document.getElementById('saved').textContent.includes('Guardado cifrado'));
- const storage=await page.evaluate(()=>({disk:localStorage.getItem('mac-ve-v3-member-'+'b'.repeat(64)),session:sessionStorage.getItem('movida-sst-mac-session')}));assert.equal(JSON.parse(storage.disk).encrypted,1);assert.ok(!storage.disk.includes('MARCADOR_FINAL'));assert.deepEqual(JSON.parse(storage.session),{token:valid.token});
+ const storage=await page.evaluate(()=>({disk:localStorage.getItem('mac-ve-v3-member-'+'b'.repeat(64)+':demo'),session:sessionStorage.getItem('movida-sst-mac-session')}));assert.equal(JSON.parse(storage.disk).encrypted,1);assert.ok(!storage.disk.includes('MARCADOR_FINAL'));assert.deepEqual(JSON.parse(storage.session),{token:valid.token});
  await page.reload({waitUntil:'networkidle'});await page.waitForSelector('#reportPreview');
  await page.locator('#logoutBtn').click();await page.waitForFunction(()=>document.getElementById('appShell').hidden);await page.waitForFunction(()=>document.getElementById('stage').children.length===0);assert.ok(revoked);
  assert.deepEqual(errors,[]);

@@ -22,12 +22,13 @@ async function openApp(data,legacy){
  $("memberName").textContent=data.name||"integrante";document.body.classList.remove("auth-locked");
  clearTimeout(expiryTimer);clearInterval(checkTimer);
  expiryTimer=setTimeout(()=>closeSession(true),Math.max(0,Date.parse(data.expires_at)-Date.now()));
- checkTimer=setInterval(async()=>{try{const valid=await rpc("mac_resume",{p_token:token});if(!valid?.ok)await closeSession(true)}catch{await closeSession(true)}},60000);
+ checkTimer=setInterval(async()=>{try{const checkedToken=token;const valid=await rpc("mac_resume",{p_token:checkedToken});if(token===checkedToken&&!valid?.ok)await closeSession(true)}catch{/* La caducidad local sigue activa durante fallos transitorios de red. */}},60000);
 }
 async function closeSession(expired=false){
- if(closing)return;closing=true;clearTimeout(expiryTimer);clearInterval(checkTimer);
+ if(closing)return;closing=true;
  let saveFailed=false;
- try{await window.MACApp.flush()}catch{saveFailed=true;if(!expired){message("El guardado falló. Exporta el expediente antes de cerrar.");closing=false;return}}
+ try{await window.MACApp.flush()}catch{saveFailed=true;if(!expired){$("saved").textContent="El guardado falló. Exporta el expediente antes de cerrar.";closing=false;return}}
+ clearTimeout(expiryTimer);clearInterval(checkTimer);
  const previous=token;token=null;sessionStorage.removeItem(SESSION);
  $("appShell").hidden=true;$("appShell").setAttribute("aria-hidden","true");$("loginGate").hidden=false;document.body.classList.add("auth-locked");
  await window.MACApp.lock();

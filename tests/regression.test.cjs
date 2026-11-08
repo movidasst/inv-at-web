@@ -12,7 +12,7 @@ function harness(){
  const localStorage={getItem:key=>memory.get(key)||null,setItem:(key,value)=>memory.set(key,value),removeItem:key=>memory.delete(key)};
  const window={addEventListener(){},scrollTo(){},XLSX:{utils:{book_new:()=>({Sheets:{}}),aoa_to_sheet:rows=>({rows}),book_append_sheet:(b,s,n)=>b.Sheets[n]=s,encode_range:()=>'',sheet_to_json:s=>s.rows}}};
  const sandbox={window,document,localStorage,crypto:webcrypto,TextEncoder,TextDecoder,btoa,atob,console,alert(){},confirm:()=>true};
- const source=fs.readFileSync(require.resolve('../v2.js'),'utf8').replace(/\}\)\(\);\s*$/,`window.audit={initial,demo,warnings,captureDiagram,buildWorkbook,workbookToState,removeRecord,isWorkInProgress,switchInvestigation,save,load,renderReportHtml,setState:v=>s=v,getState:()=>s,setCy:v=>cy=v,configure:async()=>{STORAGE="test-store";storageKey=await crypto.subtle.importKey("raw",new Uint8Array(32),"AES-GCM",false,["encrypt","decrypt"])},switchWithoutRender:(v)=>{const old=render;render=()=>{};try{switchInvestigation(v)}finally{render=old}}};})();`);
+ const source=fs.readFileSync(require.resolve('../v2.js'),'utf8').replace(/\}\)\(\);\s*$/,`async function withoutRender(action){const old=render;render=()=>{};try{return await action()}finally{render=old}}window.audit={initial,demo,warnings,captureDiagram,replaceSafely:(...args)=>withoutRender(()=>replaceSafely(...args)),restoreInvestigation:()=>withoutRender(restoreInvestigation),buildWorkbook,workbookToState,removeRecord,isWorkInProgress,save,load,renderReportHtml,setState:v=>s=v,getState:()=>s,setCy:v=>cy=v,configure:async()=>{STORAGE="test-store";storageKey=await crypto.subtle.importKey("raw",new Uint8Array(32),"AES-GCM",false,["encrypt","decrypt"])},switchWithoutRender:(v)=>{const old=render;render=()=>{};try{showInvestigation(v,8);save()}finally{render=old}}};})();`);
  vm.runInNewContext(source,sandbox);
  return {api:window.audit,window,labels,memory,localStorage};
 }
@@ -25,7 +25,7 @@ test('Excel rejects node/edge ID collisions and invalid enum values',()=>{const 
 test('Excel node labels use the canonical fact text',()=>{const {api}=harness();const book=api.buildWorkbook(api.demo());book.Sheets.NODOS_ARBOL.rows[1][1]='TEXTO DIFERENTE';const data=api.workbookToState(book);assert.equal(data.diagram.cytoscape[0].data.label,data.facts.find(f=>f.id==='H08').text)});
 test('report uses stable IDs after a deletion and escapes markup',()=>{const {api}=harness();const data=api.demo();data.facts.shift();data.general.description='<img src=x onerror=alert(1)>';api.setState(data);const report=api.renderReportHtml({forPdf:true});assert.match(report,/<strong>H02<\/strong>/);assert.doesNotMatch(report,/<strong>H01<\/strong>/);assert.ok(report.includes('&lt;img'))});
 test('every partial form protects against unconfirmed demo replacement',()=>{const {api}=harness();for(const field of ['company','worker','place','investigator']){const data=api.initial();data.general[field]='dato';api.setState(data);assert.ok(api.isWorkInProgress())}const data=api.initial();api.setState(data);assert.equal(api.isWorkInProgress(),false);data.legal.notes='constancia';assert.ok(api.isWorkInProgress())});
-test('encrypted storage roundtrips and serializes rapid saves',async()=>{const {api,memory}=harness();await api.configure();const data=api.demo();api.setState(data);const first=api.save();data.general.worker='ÚLTIMO VALOR CONFIDENCIAL';const last=api.save();await Promise.all([first,last]);const disk=memory.get('test-store');assert.ok(!disk.includes('CONFIDENCIAL'));assert.equal(JSON.parse(disk).encrypted,1);api.setState(api.initial());await api.load();assert.equal(api.getState().general.worker,'ÚLTIMO VALOR CONFIDENCIAL')});
+test('encrypted storage roundtrips and serializes rapid saves',async()=>{const {api,memory}=harness();await api.configure();const data=api.demo();api.setState(data);const first=api.save();data.general.worker='ÚLTIMO VALOR CONFIDENCIAL';const last=api.save();await Promise.all([first,last]);const disk=memory.get('test-store:demo');assert.ok(!disk.includes('CONFIDENCIAL'));assert.equal(JSON.parse(disk).encrypted,1);api.setState(api.initial());await api.load();assert.equal(api.getState().general.worker,'ÚLTIMO VALOR CONFIDENCIAL')});
 test('corrupt storage is preserved rather than replaced with demo',async()=>{const {api,memory}=harness();await api.configure();memory.set('test-store','{"encrypted":1,"iv":"broken","data":"broken"}');await assert.rejects(api.load());assert.match(memory.get('test-store'),/broken/)});
 
 test('contradictory evidence keeps the fact and its conjunction out of the verified report tree',()=>{
@@ -93,4 +93,36 @@ test('legal declarations roundtrip by recipient and preserve older Excel records
  assert.match(api.renderReportHtml({forPdf:true}),/Declaración formal al CSSL/);
  imported.legal.union.applies='no';
  assert.ok(!api.warnings().some(w=>/al sindicato:/.test(w)));
+});
+
+test('demo saves in a separate slot and the real investigation survives reopening',async()=>{
+ const {api,memory}=harness();await api.configure();
+ const real=api.initial();real.general.code='REAL-1';api.setState(real);await api.save();
+ await api.replaceSafely(api.demo(),8);
+ const original=memory.get('test-store');
+ api.getState().general.company='Solo demo';await api.save();
+ assert.equal(memory.get('test-store'),original);
+ assert.ok(memory.get('test-store:demo'));
+ assert.ok(!memory.has('test-store:recovery'));
+ await api.load();assert.equal(api.getState().general.code,'REAL-1');
+});
+
+test('replacing a real case leaves an encrypted copy and restoring swaps the prior case',async()=>{
+ const {api,memory}=harness();await api.configure();
+ const before=api.initial();before.general.code='REAL-1';api.setState(before);await api.save();
+ const next=api.initial();next.general.code='REAL-2';await api.replaceSafely(next,1);
+ const backup=memory.get('test-store:recovery');
+ assert.equal(JSON.parse(backup).encrypted,1);assert.ok(!backup.includes('REAL-1'));
+ await api.restoreInvestigation();assert.equal(api.getState().general.code,'REAL-1');
+ await api.restoreInvestigation();assert.equal(api.getState().general.code,'REAL-2');
+});
+
+test('a backup failure prevents replacement of the active investigation',async()=>{
+ const {api,localStorage}=harness();await api.configure();
+ const before=api.initial();before.general.code='REAL-1';api.setState(before);await api.save();
+ const next=api.initial();next.general.code='REAL-2';
+ const set=localStorage.setItem;localStorage.setItem=(k,v)=>{if(k.endsWith(':recovery'))throw Error('Cuota agotada');set(k,v)};
+ await assert.rejects(api.replaceSafely(next,1),/Cuota agotada/);
+ assert.equal(api.getState().general.code,'REAL-1');
+ await api.load();assert.equal(api.getState().general.code,'REAL-1');
 });

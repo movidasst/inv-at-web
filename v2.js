@@ -25,23 +25,37 @@ const initial=()=>({version:2,general:{code:"",company:"",place:"",date:"",time:
 legal:{...Object.fromEntries(legalActs.map(a=>[a.key,{at:"",proof:""}])),notes:""},
 evidence:[],timeline:[],facts:[],diagram:{cytoscape:[],seq:1,final:""},analyses:{},actions:[],conclusion:"",limits:"",reviewDate:""});
 let s=initial(),step=0,cy=null;
-let storageKey=null,saveQueue=Promise.resolve(),pendingSaves=0,saveError=null;
+let storageKey=null,saveQueue=Promise.resolve(),pendingSaves=0,saveError=null,replacement=null;
+const demoStorage=()=>STORAGE+":demo";
+const recoveryStorage=()=>STORAGE+":recovery";
+const activeStorage=()=>s.isDemo?demoStorage():STORAGE;
 const toBase64=bytes=>btoa(Array.from(bytes,b=>String.fromCharCode(b)).join(""));
 const fromBase64=text=>Uint8Array.from(atob(text),c=>c.charCodeAt(0));
+async function writeEncrypted(target,key,snapshot){
+ if(!target||!key)throw Error("Sesión de almacenamiento no disponible");
+ const iv=crypto.getRandomValues(new Uint8Array(12));
+ const encrypted=await crypto.subtle.encrypt({name:"AES-GCM",iv,additionalData:new TextEncoder().encode(target)},key,new TextEncoder().encode(snapshot));
+ localStorage.setItem(target,JSON.stringify({encrypted:1,iv:toBase64(iv),data:toBase64(new Uint8Array(encrypted))}));
+}
+async function readEncrypted(value,target){
+ const envelope=JSON.parse(value);if(envelope.encrypted!==1)throw Error("Formato de guardado no reconocido");
+ const plain=await crypto.subtle.decrypt({name:"AES-GCM",iv:fromBase64(envelope.iv),additionalData:new TextEncoder().encode(target)},storageKey,fromBase64(envelope.data));
+ return migrate(JSON.parse(new TextDecoder().decode(plain)));
+}
 function save(){
  if(cy)s.diagram.cytoscape=cy.elements().jsons();
- const snapshot=JSON.stringify(s),target=STORAGE,key=storageKey;
+ const snapshot=JSON.stringify(s),target=activeStorage(),key=storageKey;
  pendingSaves++;$("saved").textContent="Guardando…";
  saveQueue=saveQueue.then(async()=>{
-  if(!target||!key)throw Error("Sesión de almacenamiento no disponible");
-  const iv=crypto.getRandomValues(new Uint8Array(12));
-  const encrypted=await crypto.subtle.encrypt({name:"AES-GCM",iv,additionalData:new TextEncoder().encode(target)},key,new TextEncoder().encode(snapshot));
-  localStorage.setItem(target,JSON.stringify({encrypted:1,iv:toBase64(iv),data:toBase64(new Uint8Array(encrypted))}));
+  await writeEncrypted(target,key,snapshot);
   saveError=null;
- }).catch(error=>{saveError=error;}).finally(()=>{pendingSaves--;$("saved").textContent=saveError?"No se pudo guardar: exporta el expediente":pendingSaves?"Guardando…":"Guardado cifrado en este dispositivo"});
+ }).catch(error=>{saveError=error;}).finally(()=>{pendingSaves--;refreshSaveStatus()});
  return saveQueue;
 }
-window.addEventListener("beforeunload",event=>{if(pendingSaves||saveError){event.preventDefault();event.returnValue=""}});
+function refreshSaveStatus(){
+ $("saved").textContent=saveError?"No se pudo guardar: exporta el expediente":pendingSaves?"Guardando…":"Guardado cifrado en este dispositivo";
+}
+window.addEventListener("beforeunload",event=>{if(pendingSaves||saveError||replacement){event.preventDefault();event.returnValue=""}});
 function migrate(o){
 if(!o||!o.general||!Array.isArray(o.facts))throw Error("Formato no compatible");
 if(o.version===2){if(!o.legal||!o.diagram||!Array.isArray(o.evidence))throw Error("Archivo incompleto");return {...o,legal:{...initial().legal,...o.legal}}}
@@ -55,10 +69,15 @@ return d
 }
 async function load(legacyScope){
  const v=localStorage.getItem(STORAGE);
- if(v){const envelope=JSON.parse(v);if(envelope.encrypted!==1)throw Error("Formato de guardado no reconocido");
-  const plain=await crypto.subtle.decrypt({name:"AES-GCM",iv:fromBase64(envelope.iv),additionalData:new TextEncoder().encode(STORAGE)},storageKey,fromBase64(envelope.data));
-  s=migrate(JSON.parse(new TextDecoder().decode(plain)));return true;
+ if(v){
+  s=await readEncrypted(v,STORAGE);
+  if(!s.isDemo)return true;
+  const storedDemo=localStorage.getItem(demoStorage());
+  if(storedDemo)s=await readEncrypted(storedDemo,demoStorage());
+  return true;
  }
+ const storedDemo=localStorage.getItem(demoStorage());
+ if(storedDemo){s=await readEncrypted(storedDemo,demoStorage());return true}
  if(legacyScope){const oldKey="mac-ve-v2-member-"+legacyScope,old=localStorage.getItem(oldKey);if(old){s=migrate(JSON.parse(old));await save();if(saveError)throw saveError;localStorage.removeItem(oldKey);return true}}
  return false;
 }
@@ -113,7 +132,7 @@ row.append(btn("Ver investigación completa e informe",()=>loadFullDemo(false),"
 row.append(btn("Recorrer demostración guiada",()=>loadFullDemo(true)));
 row.append(btn("Descargar caso de prueba en Excel",()=>downloadWorkbook(demo(),"DEMO_AT_2026")));
 row.append(btn("Comenzar investigación real",()=>startNewInvestigation()));
-if(s.isDemo)row.append(btn("Borrar demostración actual",()=>discardDemo(),"btn danger"));
+if(s.isDemo)row.append(btn("Volver al expediente real",()=>discardDemo(),"btn danger"));
 g.append(row);
 const priv=group(root,"Tratamiento de datos y límites");priv.append(E("p","", "La información se guarda automáticamente solo en el almacenamiento local de este navegador. No hay cuenta, respaldo remoto ni recuperación entre dispositivos. Para conservarla, exporta un Excel y guárdalo en un lugar seguro. Evita usar datos personales o médicos sensibles en dispositivos compartidos. No se envían expedientes a servicios de IA."));priv.append(E("p","muted","La aplicación ayuda a documentar una investigación; no determina oficialmente el origen ocupacional ni certifica cumplimiento legal."));
 const rr=group(root,"Referencias de trabajo");Object.keys(refs).forEach(k=>{const x=E("p");x.append(E("strong","",refs[k]+" · "));link(x,"Consultar fuente",URLs[k]);rr.append(x)})}
@@ -371,8 +390,8 @@ function renderReportHtml(options={}){
  '<h3>Referencias de consulta</h3><ul class="report-references">'+[refs.ley,refs.reg,refs.nt,refs.oit].map(x=>'<li>'+esc(x)+'</li>').join("")+'</ul>'+details([["Fecha de revisión",s.reviewDate],["Responsable",s.general.investigator]])+'<p class="report-caption">Instrumento técnico de apoyo, no formulario oficial. La calificación del origen ocupacional corresponde al órgano competente conforme a la LOPCYMAT.</p>')+
  '<div class="report-end">MAC · Método del Árbol de Causas · Academia Movida de SST</div></article>';
 }
-function report(root){pTitle(root,s.isDemo?"Informe de demostración · Caso ficticio":"8. Informe técnico de investigación",s.isDemo?"La investigación de prueba ya está cargada y el informe se genera automáticamente aquí. Puedes recorrer las etapas, exportar a Excel o PDF, o borrar el ejemplo para empezar.":"Revisa integridad, genera el expediente y expórtalo. Los hallazgos son responsabilidad profesional de quien investiga, no conclusiones automáticas.");
-if(s.isDemo){note(root,"Expediente DEMO-AT-2026-001: 11 evidencias, 7 acontecimientos cronológicos, 12 hechos, árbol causal, análisis fundamentado y cuatro medidas. Algunas hipótesis permanecen abiertas deliberadamente; es un ejercicio docente, no un accidente real.");const shortcuts=E("div","row");shortcuts.append(btn("Revisar datos generales",()=>goto(1)));shortcuts.append(btn("Explorar evidencias",()=>goto(3)));shortcuts.append(btn("Ver árbol de causas",()=>goto(5)));shortcuts.append(btn("Ver plan de medidas",()=>goto(7)));shortcuts.append(btn("Borrar demo y comenzar",()=>discardDemo(),"btn danger"));root.append(shortcuts)}
+function report(root){pTitle(root,s.isDemo?"Informe de demostración · Caso ficticio":"8. Informe técnico de investigación",s.isDemo?"La investigación de prueba ya está cargada y el informe se genera automáticamente aquí. Puedes recorrer las etapas, exportar a Excel o PDF, o volver al expediente real.":"Revisa integridad, genera el expediente y expórtalo. Los hallazgos son responsabilidad profesional de quien investiga, no conclusiones automáticas.");
+if(s.isDemo){note(root,"Expediente DEMO-AT-2026-001: 11 evidencias, 7 acontecimientos cronológicos, 12 hechos, árbol causal, análisis fundamentado y cuatro medidas. Algunas hipótesis permanecen abiertas deliberadamente; es un ejercicio docente, no un accidente real.");const shortcuts=E("div","row");shortcuts.append(btn("Revisar datos generales",()=>goto(1)));shortcuts.append(btn("Explorar evidencias",()=>goto(3)));shortcuts.append(btn("Ver árbol de causas",()=>goto(5)));shortcuts.append(btn("Ver plan de medidas",()=>goto(7)));shortcuts.append(btn("Volver al expediente real",()=>discardDemo(),"btn danger"));root.append(shortcuts)}
 const w=warnings();if(w.length){const g=group(root,"Aspectos pendientes ("+w.length+")");w.forEach(x=>g.append(E("p","muted","• "+x)))}else note(root,"La revisión automática no encontró datos esenciales faltantes. Verifica de todos modos el fundamento y la calidad técnica.");
 const bar=E("div","row");bar.append(btn("Actualizar vista previa",()=>preview()));bar.append(btn("Descargar PDF",()=>downloadPDF(),"btn"));bar.append(btn("Imprimir",()=>window.print()));root.append(bar);
 const prev=E("div","item");prev.id="reportPreview";prev.style.marginTop="15px";root.append(prev);preview();
@@ -634,51 +653,84 @@ function validateImportedState(obj){
  for(const a of Object.values(obj.analyses)){if(!["sin_clasificar","inmediata","basica","raiz","contribuyente","no_causal"].includes(a.classification)||!["pendiente","sustentado","hipotesis"].includes(a.certainty))throw Error("Clasificación o sustento no válido en ANALISIS")}
  if(obj.legal.union.applies&&!['si','no','por_confirmar'].includes(obj.legal.union.applies))throw Error("Aplicabilidad sindical inválida");
 }
-function importWorkbook(input){if(!excelAvailable())return;const file=input?.files?.[0];if(!file)return;if(file.size>8*1024*1024){alert("El archivo supera los 8 MB permitidos.");input.value="";return}
-file.arrayBuffer().then(buf=>{const book=window.XLSX.read(buf,{type:"array",cellDates:false});const obj=workbookToState(book);if(confirm("Se importará el expediente «"+(obj.general.code||"Sin código")+"» y sustituirá la investigación actual. ¿Continuar?")){switchInvestigation(obj,obj.isDemo?8:1);alert("Investigación Excel importada con sus evidencias, árbol de causas, medidas y conclusiones.")}}).catch(e=>{console.error(e);alert("No se pudo importar el Excel: "+e.message)}).finally(()=>input.value="")}
+async function importWorkbook(input){
+ if(!excelAvailable())return;
+ const file=input?.files?.[0];if(!file)return;
+ try{
+  if(file.size>8*1024*1024)throw Error("El archivo supera los 8 MB permitidos.");
+  const book=window.XLSX.read(await file.arrayBuffer(),{type:"array",cellDates:false}), obj=workbookToState(book);
+  const message=obj.isDemo?"Se abrirá el Excel en el espacio separado de demostración. ¿Continuar?":"Se importará «"+(obj.general.code||"Sin código")+"». Si hay un expediente real con datos, quedará como última copia recuperable en este navegador. ¿Continuar?";
+  if(confirm(message))await replaceSafely(obj,obj.isDemo?8:1);
+ }catch(e){alert("No se pudo importar el Excel: "+e.message)}finally{input.value=""}
+}
+function showInvestigation(next,target){
+ if(cy){cy.destroy();cy=null}
+ s=next;
+ goto(target);
+}
+function replaceSafely(next,target){
+ if(replacement)return replacement;
+ const shell=$("appShell");
+ shell.inert=true;
+ replacement=(async()=>{
+  await save();
+  if(saveError)throw Error("El guardado actual falló. Exporta el expediente antes de continuar.");
+  if(!next.isDemo){
+   const previous=localStorage.getItem(STORAGE);
+   if(previous){
+    const active=await readEncrypted(previous,STORAGE);
+    if(!active.isDemo&&isWorkInProgress(active))localStorage.setItem(recoveryStorage(),previous);
+   }
+  }
+  await writeEncrypted(next.isDemo?demoStorage():STORAGE,storageKey,JSON.stringify(next));
+  showInvestigation(next,target);refreshSaveStatus();
+ })().finally(()=>{shell.inert=false;replacement=null});
+ return replacement;
+}
+async function restoreInvestigation(){
+ try{
+  const value=localStorage.getItem(recoveryStorage());
+  if(!value)return;
+  if(!confirm("¿Recuperar la última copia del expediente real? Si el expediente real activo tiene datos, se conservará como la nueva copia recuperable."))return;
+  const recovered=await readEncrypted(value,STORAGE);
+  if(recovered.isDemo)throw Error("La copia corresponde a una demostración.");
+  await replaceSafely(recovered,1);
+ }catch(e){alert("No se pudo recuperar el expediente: "+e.message)}
+}
 
-
-function switchInvestigation(next,target=8){
-  if(cy){cy.destroy();cy=null}
-  s=next;
-  save();
-  goto(target);
+function isWorkInProgress(state=s){
+  const meaningful=v=>typeof v==="string"?Boolean(v.trim()):Array.isArray(v)?v.some(meaningful):v&&typeof v==="object"?Object.values(v).some(meaningful):false;return meaningful(state.general)||meaningful(state.legal)||meaningful(state.evidence)||meaningful(state.timeline)||meaningful(state.facts)||meaningful(state.actions)||meaningful(state.analyses)||meaningful(state.conclusion)||meaningful(state.limits)||meaningful(state.reviewDate);
 }
-function isWorkInProgress(){
-  const meaningful=v=>typeof v==="string"?Boolean(v.trim()):Array.isArray(v)?v.some(meaningful):v&&typeof v==="object"?Object.values(v).some(meaningful):false;return meaningful(s.general)||meaningful(s.legal)||meaningful(s.evidence)||meaningful(s.timeline)||meaningful(s.facts)||meaningful(s.actions)||meaningful(s.analyses)||meaningful(s.conclusion)||meaningful(s.limits)||meaningful(s.reviewDate);
+async function loadFullDemo(guided=false){
+ if(s.isDemo&&!confirm("¿Reiniciar el caso ficticio? Se sustituirán únicamente los cambios de la demostración."))return;
+ const d=demo();d.isDemo=true;d.demoMode=guided;
+ try{await replaceSafely(d,guided?1:8)}catch(e){alert(e.message)}
 }
-function loadFullDemo(guided=false){
-  const message = s.isDemo
-    ? "¿Reiniciar la demostración con los datos ficticios originales? Se perderán los cambios realizados en la demo."
-    : "¿Cargar el caso de demostración? Reemplazará la investigación actual de este navegador. Exporta primero a Excel si deseas conservarla.";
-  if(isWorkInProgress()&&!confirm(message))return;
-  const d=demo();
-  d.isDemo=true;
-  d.demoMode=guided;
-  switchInvestigation(d,guided?1:8);
+async function discardDemo(){
+ if(!s.isDemo||replacement)return;
+ try{
+  await save();if(saveError)throw saveError;
+  const value=localStorage.getItem(STORAGE), real=value?await readEncrypted(value,STORAGE):initial();
+  if(!value||real.isDemo){await replaceSafely(initial(),1);return}
+  showInvestigation(real,1);refreshSaveStatus();
+ }catch{alert("No se pudo abrir el expediente real. Conserva el guardado y solicita asistencia.")}
 }
-function discardDemo(){
-  if(!s.isDemo)return;
-  if(!confirm("¿Borrar TODOS los datos de la demostración y empezar una investigación vacía? Si deseas conservar el ejemplo, exporta antes su Excel."))return;
-  switchInvestigation(initial(),1);
-}
-function startNewInvestigation(){
-  const message=s.isDemo
-    ? "¿Borrar la demostración y comenzar una investigación REAL completamente vacía?"
-    : "¿Iniciar una investigación vacía? Los datos actuales de este navegador serán reemplazados. Exporta antes tu expediente a Excel si lo necesitas.";
-  if(!confirm(message))return;
-  switchInvestigation(initial(),1);
+async function startNewInvestigation(){
+ if(!confirm("¿Iniciar un expediente real vacío? Si hay un expediente real con datos, quedará como última copia recuperable en este navegador."))return;
+ try{await replaceSafely(initial(),1)}catch(e){alert(e.message)}
 }
 function updateDemoControls(){
   const active=Boolean(s.isDemo);
   const label=$("demoLoadedLabel"),summary=$("demoSummary");
   if(label)label.textContent=active?"MODO DEMOSTRACIÓN · EXPEDIENTE FICTICIO":"Demostración completa disponible";
   if(summary)summary.textContent=active
-    ?"Caso DEMO-AT-2026-001 cargado: "+s.evidence.length+" evidencias, "+s.facts.length+" hechos, "+s.diagram.cytoscape.filter(x=>x.group==="nodes").length+" nodos, "+s.actions.length+" medidas. Consulta el informe o explora las 8 etapas. Puedes borrar el ejemplo cuando quieras."
-    :"Carga el caso ficticio con datos, evidencias, árbol de causas, medidas e informe ya elaborado. Después podrás borrarlo y utilizar MAC normalmente.";
+    ?"Caso DEMO-AT-2026-001 cargado: "+s.evidence.length+" evidencias, "+s.facts.length+" hechos, "+s.diagram.cytoscape.filter(x=>x.group==="nodes").length+" nodos, "+s.actions.length+" medidas. Consulta el informe o explora las 8 etapas. Puedes volver al expediente real desde aquí."
+    :"Carga el caso ficticio con datos, evidencias, árbol de causas, medidas e informe ya elaborado. La demostración se guarda por separado del expediente real.";
   const reportBtn=$("openDemoReportBtn"),clearBtn=$("clearDemoBtn"),loadBtn=$("loadDemoBtn");
   if(reportBtn)reportBtn.hidden=!active;
-  if(clearBtn)clearBtn.hidden=!active;
+  if(clearBtn){clearBtn.hidden=!active;clearBtn.textContent="Volver al expediente real";}
+  const recovery=$("restoreCaseBtn");
+  if(recovery){try{recovery.hidden=!localStorage.getItem(recoveryStorage())}catch{recovery.hidden=true}}
   if(loadBtn)loadBtn.textContent=active?"Reiniciar demostración":"Cargar demo completa";
   const bar=$("demoBanner");
   if(bar)bar.classList.toggle("demo-active",active);
@@ -693,6 +745,7 @@ $("next").onclick=()=>goto(step+1);
 $("loadDemoBtn").onclick=()=>loadFullDemo(false);
 $("openDemoReportBtn").onclick=()=>goto(8);
 $("clearDemoBtn").onclick=()=>discardDemo();
+const recovery=$("restoreCaseBtn");if(recovery)recovery.onclick=()=>restoreInvestigation();
 }
 
 // Iniciar únicamente después de la validación de credenciales del registro de integrantes.
@@ -710,7 +763,7 @@ window.MACApp = {
     bindHeader();render();await save();if(saveError)throw saveError;
     appInitialized = true;
   },
-  async flush(){await saveQueue;if(saveError)throw saveError;},
+  async flush(){if(replacement)await replacement.catch(()=>{});await saveQueue;if(saveError)throw saveError;},
   async lock(){await saveQueue;if(cy){cy.destroy();cy=null}s=initial();storageKey=null;appInitialized=false;$("stage").replaceChildren();}
 };
 })();
