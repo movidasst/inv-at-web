@@ -34,6 +34,15 @@
 <script defer src="v2.js?v=20261101a"></script>
 <script defer src="auth.js?v=20261101a"></script>
 <script defer src="https://www.movidasst.com/analytics.js?v=20261025-ga4com2"></script>
+<style>
+.mac-faq{margin:1rem 0;background:#fff;border:1px solid #cbdedc;border-radius:16px;overflow:hidden;scroll-margin-top:1rem}
+.mac-faq summary{padding:.85rem 1rem;cursor:pointer;font-weight:750;color:#00616a;background:#e2f5ef}
+.mac-faq summary:focus-visible{outline:3px solid #007b85;outline-offset:-4px}
+.mac-faq-body{padding:.75rem}
+.mac-faq-body p{margin:0 0 .65rem}
+.mac-faq iframe{display:block;width:100%;height:72vh;min-height:320px;border:1px solid #cbdedc;border-radius:12px;background:#f8fafc}
+@media print{.mac-faq{display:none}}
+</style>
 </head><body class="auth-locked">
 
 <section class="login-gate" id="loginGate" aria-labelledby="loginTitle">
@@ -67,6 +76,7 @@
         <button class="login-submit" id="loginSubmit" type="submit"><span>Ingresar a MAC</span></button>
       </form>
       <p class="login-help">¿Todavía no tienes credenciales? <a href="https://registro.movidasst.com/" target="_blank" rel="noopener noreferrer">Regístrate en La Movida de SST</a>.</p>
+      <p class="login-help"><a href="faq.html">Consultar preguntas frecuentes del MAC</a></p>
       <p class="login-privacy">La validación se realiza contra el registro de integrantes. MAC no almacena tu cédula ni tu clave en la sesión. El acceso permanece abierto durante <strong>60 minutos</strong>; tus avances se guardan cifrados en este navegador y puedes exportarlos a Excel. Evita usar datos sensibles en dispositivos compartidos.</p>
     </div>
   </div>
@@ -75,7 +85,7 @@
 <div id="appShell" hidden aria-hidden="true">
 <header class="head">
 <a href="https://www.movidasst.com" class="brand" aria-label="La Movida de SST · Inicio"><img src="https://raw.githubusercontent.com/movidasst/aplicaciones/main/logo-oficial-movida-sst-plus.png" alt="Logo La Movida de SST"><span>Academia Movida de SST<small>De la Reacción a la Prevención</small></span></a>
-<div class="header-actions"><a class="btn secondary" href="https://movidasst.org/" target="_blank" rel="noopener noreferrer">Acceder a Moodle</a><span id="saved" class="muted" role="status">Guardado local</span><div class="member-strip"><span id="memberName"></span><button type="button" id="logoutBtn">Cerrar sesión</button></div><button type="button" id="new" class="btn danger">Nueva</button><button type="button" id="export" class="btn secondary">Exportar Excel</button><label class="btn secondary" for="import">Importar Excel</label><input type="file" id="import" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden></div>
+<div class="header-actions"><a class="btn secondary" id="macFaqLink" href="#faq-mac">Preguntas frecuentes</a><a class="btn secondary" href="https://movidasst.org/" target="_blank" rel="noopener noreferrer">Acceder a Moodle</a><span id="saved" class="muted" role="status">Guardado local</span><div class="member-strip"><span id="memberName"></span><button type="button" id="logoutBtn">Cerrar sesión</button></div><button type="button" id="new" class="btn danger">Nueva</button><button type="button" id="export" class="btn secondary">Exportar Excel</button><label class="btn secondary" for="import">Importar Excel</label><input type="file" id="import" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden></div>
 </header>
 <div class="shell">
 <div class="hero"><span class="pill">Herramienta técnica · Venezuela</span><h1>MAC · Método del Árbol de Causas</h1><p><strong>Investigación de Accidentes de Trabajo.</strong> Metodología, causalidad y prevención. Desarrollo guiado conforme a la LOPCYMAT, su Reglamento Parcial y la NT-04:2023, con método del árbol de causas y análisis de causas raíz.</p></div>
@@ -86,6 +96,14 @@
 <button class="btn" id="openDemoReportBtn" type="button" hidden>Ver informe completo</button>
 <button class="btn danger" id="clearDemoBtn" type="button" hidden>Borrar demo y empezar</button>
 </div></section>
+<details class="mac-faq" id="faq-mac">
+  <summary>Preguntas frecuentes del Método del Árbol de Causas</summary>
+  <div class="mac-faq-body">
+    <p><a href="faq.html" target="_blank" rel="noopener">Abrir el FAQ en una pestaña nueva</a></p>
+    <iframe id="macFaqFrame" title="FAQ interactivo del Método del Árbol de Causas" data-src="faq.html"></iframe>
+    <noscript><p><a href="faq.html">Abrir el FAQ interactivo</a></p></noscript>
+  </div>
+</details>
 <div class="progress-wrap"><div class="row between"><strong id="stepLabel">Etapa 1 de 9</strong><small class="muted">Los datos se guardan en este navegador</small></div><div class="progress"><div id="progressBar" style="width:0%"></div></div></div>
 <nav class="steps" id="steps" aria-label="Etapas de la investigación"></nav>
 <main class="page" id="stage" aria-live="polite"></main>
@@ -93,4 +111,19 @@
 <footer class="foot">Academia Movida de SST · Instrumentos técnicos de apoyo, no formularios oficiales de INPSASEL · <a href="https://www.movidasst.com">www.movidasst.com</a></footer>
 </div>
 </div>
+<script>
+(() => {
+  const faq = document.getElementById('faq-mac');
+  const frame = document.getElementById('macFaqFrame');
+  faq.addEventListener('toggle', () => {
+    if (faq.open && !frame.hasAttribute('src')) frame.src = frame.dataset.src;
+  });
+  document.getElementById('macFaqLink').addEventListener('click', () => {
+    faq.open = true;
+  });
+  const openFromHash = () => { if (location.hash === '#faq-mac') faq.open = true; };
+  window.addEventListener('hashchange', openFromHash);
+  openFromHash();
+})();
+</script>
 </body></html>
